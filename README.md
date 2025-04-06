@@ -18,6 +18,10 @@ A Python tool to test and rank the quality of responses from local LLMs running 
   - Full test results (with all 10 prompts per category) are saved
   - Archived results are automatically reused in future tests
   - Includes timestamp for when each model was evaluated
+- Comprehensive logging system
+  - Logs all operations to timestamped log files
+  - Tracks Anthropic API calls and errors
+  - Configurable log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 
 ## Installation
 
@@ -76,6 +80,9 @@ rank-llms gemma3:27b llama3.1:70b-instruct-q2_k --output custom-results.md
 
 # Force retesting of models even if archived results exist
 rank-llms gemma3:27b llama3.1:70b-instruct-q2_k --force-retest
+
+# Set a specific log level
+rank-llms gemma3:27b --log-level DEBUG
 ```
 
 Alternatively, you can run the module directly:
@@ -95,6 +102,7 @@ python -m rank_llms gemma3:27b llama3.1:70b-instruct-q2_k --num-prompts 3
 - Detailed markdown results file with all prompts, responses, and evaluations
 - Summary table in console showing average scores by category and response times
 - Archived test results stored in the `test_archive` directory
+- Log files stored in the `logs` directory with timestamped filenames
 
 ## Test Archive
 
@@ -106,3 +114,22 @@ The app maintains an archive of full test results (when using all 10 prompts per
 - The `--force-retest` flag can be used to force the app to retest models even if they have archived results
 - Tests with fewer than 10 prompts per category will always execute the tests again (archives are only used for full tests)
 - Each archived response includes a timestamp indicating when it was tested
+
+## Logging System
+
+The app includes a comprehensive logging system that records all operations:
+
+- Each run creates a timestamped log file in the `logs` directory
+- Logs include information about:
+  - Models being tested
+  - Prompts being processed
+  - API calls to Ollama and Anthropic
+  - Errors and warnings during execution
+  - Archive operations
+- Log levels can be configured with the `--log-level` parameter:
+  - `DEBUG`: Detailed debugging information
+  - `INFO`: General operational information (default)
+  - `WARNING`: Issues that might cause problems
+  - `ERROR`: Error conditions preventing functionality
+  - `CRITICAL`: Critical errors that might cause the program to crash
+- All logs also appear in the console output

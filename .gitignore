@@ -21,6 +21,10 @@ results.md
 test_archive/*
 !test_archive/.gitkeep
 
+# Logs
+logs/*
+!logs/.gitkeep
+
 # IDE files
 .idea/
 .vscode/
