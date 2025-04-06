@@ -1,0 +1,7 @@
+anthropic
+ollama
+typer
+pydantic
+rich
+pandas
+tabulate
