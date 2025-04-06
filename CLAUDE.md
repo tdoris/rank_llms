@@ -2,10 +2,11 @@
 
 ## Build & Test Commands
 - Install: `pip install -e .`
-- Run the app: `rank-llms <model1> <model2> --num-prompts 5`
-- Example: `rank-llms gemma3:27b llama3.1:70b-instruct-q2_k --num-prompts 3`
-- Force retesting: `rank-llms <model1> <model2> --force-retest`
-- Set log level: `rank-llms <model1> <model2> --log-level DEBUG`
+- Compare models: `rank-llms compare <model1> <model2> --num-prompts 5`
+- Example: `rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --num-prompts 3`
+- Force retest: `rank-llms compare <model1> <model2> --force-retest`
+- Generate leaderboard: `rank-llms leaderboard`
+- Set log level: `rank-llms compare <model1> <model2> --log-level DEBUG`
 - Run tests: `python -m pytest tests/`
 - Run single test: `python -m pytest tests/test_file.py::test_function`
 - Lint code: `flake8 rank_llms/` or `ruff check rank_llms/`

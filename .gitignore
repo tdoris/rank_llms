@@ -20,6 +20,13 @@ build/
 results.md
 test_archive/*
 !test_archive/.gitkeep
+!test_archive/comparisons/
+test_archive/comparisons/*
+!test_archive/comparisons/.gitkeep
+
+# Leaderboard
+leaderboard/*
+!leaderboard/.gitkeep
 
 # Logs
 logs/*

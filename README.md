@@ -1,23 +1,21 @@
 # Rank LLMs
 
-A Python tool to test and rank the quality of responses from local LLMs running via Ollama.
+A Python tool to compare and rank local LLMs running via Ollama.
 
 ## Features
 
-- Test multiple Ollama models with one command
-- Evaluate responses across 5 different categories:
+- Compare models head-to-head with direct A/B evaluations
+- Evaluate across 5 different categories with challenging prompts:
   - General Knowledge
   - Creative Writing  
   - Programming
   - Reasoning
   - Summarization
-- Score responses using Claude's evaluation
-- Generate comprehensive markdown report
-- View summary table in the console
-- Automatically archive test results for faster comparisons
-  - Full test results (with all 10 prompts per category) are saved
-  - Archived results are automatically reused in future tests
-  - Includes timestamp for when each model was evaluated
+- Use Claude to judge which model's response is better
+- Generate comprehensive comparison reports
+- Build an ELO-based leaderboard for overall model ranking
+- View side-by-side comparisons with winner explanations
+- Automatically archive comparison results for reuse
 - Comprehensive logging system
   - Logs all operations to timestamped log files
   - Tracks Anthropic API calls and errors
@@ -68,27 +66,36 @@ A Python tool to test and rank the quality of responses from local LLMs running 
 
 ## Usage
 
-```bash
-# Test multiple models with 10 prompts per category
-rank-llms gemma3:27b llama3.1:70b-instruct-q2_k
+### Compare Two Models
 
-# Test with fewer prompts for a quicker test
-rank-llms gemma3:27b llama3.1:70b-instruct-q2_k --num-prompts 2
+```bash
+# Compare two models with 5 prompts per category (default)
+rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k
+
+# Compare with fewer prompts for a quicker test
+rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --num-prompts 2
 
 # Specify a custom output file
-rank-llms gemma3:27b llama3.1:70b-instruct-q2_k --output custom-results.md
+rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --output custom-results.md
 
 # Force retesting of models even if archived results exist
-rank-llms gemma3:27b llama3.1:70b-instruct-q2_k --force-retest
+rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --force-retest
 
 # Set a specific log level
-rank-llms gemma3:27b --log-level DEBUG
+rank-llms compare gemma3:27b --log-level DEBUG
 ```
 
-Alternatively, you can run the module directly:
+### Generate Leaderboard
+
 ```bash
-# Make sure your virtual environment is activated
-python -m rank_llms gemma3:27b llama3.1:70b-instruct-q2_k --num-prompts 3
+# Generate and display the leaderboard
+rank-llms leaderboard
+
+# Force refreshing of all ELO ratings from comparison results
+rank-llms leaderboard --force-refresh
+
+# Specify custom output paths
+rank-llms leaderboard --output custom-leaderboard.md --json-output custom-leaderboard.json
 ```
 
 ## Requirements
@@ -99,21 +106,29 @@ python -m rank_llms gemma3:27b llama3.1:70b-instruct-q2_k --num-prompts 3
 
 ## Output
 
-- Detailed markdown results file with all prompts, responses, and evaluations
-- Summary table in console showing average scores by category and response times
-- Archived test results stored in the `test_archive` directory
+- Detailed comparison reports with side-by-side model responses
+- Win percentage summaries for each category
+- ELO-based leaderboard in markdown and JSON formats
 - Log files stored in the `logs` directory with timestamped filenames
 
-## Test Archive
+## Archiving System
 
-The app maintains an archive of full test results (when using all 10 prompts per category) in the `test_archive` directory:
+The app maintains an archive of model comparisons in the `test_archive/comparisons` directory:
 
-- Each model's results are stored in a separate file named after the model
-- When you request a test with models that have already been tested with the full 10 prompts per category, their results are loaded from the archive
-- This allows for quick comparisons of models without retesting
-- The `--force-retest` flag can be used to force the app to retest models even if they have archived results
-- Tests with fewer than 10 prompts per category will always execute the tests again (archives are only used for full tests)
-- Each archived response includes a timestamp indicating when it was tested
+- Each comparison is stored in a separate file named after the two models
+- When you request a comparison that has already been performed, the results are loaded from the archive
+- This allows for building a comprehensive leaderboard without repeating tests
+- The `--force-retest` flag can be used to force a new comparison even if archived results exist
+
+## ELO Rating System
+
+The app uses an ELO rating system to rank models based on head-to-head comparisons:
+
+- Each model starts with a default rating (1400)
+- Ratings are updated after each comparison based on win/loss results
+- The leaderboard displays models ranked by their ELO rating
+- Separate ELO ratings are maintained for each category
+- The system automatically builds a global leaderboard from all comparison results
 
 ## Logging System
 
@@ -121,7 +136,7 @@ The app includes a comprehensive logging system that records all operations:
 
 - Each run creates a timestamped log file in the `logs` directory
 - Logs include information about:
-  - Models being tested
+  - Models being compared
   - Prompts being processed
   - API calls to Ollama and Anthropic
   - Errors and warnings during execution

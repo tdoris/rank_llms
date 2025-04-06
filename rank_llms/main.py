@@ -4,7 +4,7 @@ import time
 import json
 import pickle
 import logging
-from typing import List, Dict, Any, Optional, Set
+from typing import List, Dict, Any, Optional, Set, Tuple
 from pathlib import Path
 from datetime import datetime
 
@@ -45,96 +45,17 @@ def setup_logging(level=logging.INFO):
 logger = setup_logging()
 
 from rank_llms.prompts import get_prompt_categories, get_prompts_from_categories
+from rank_llms.compare import (
+    ModelComparison, CategoryResult, ComparisonResult, 
+    evaluate_comparison, save_comparison_result, load_comparison_result
+)
+from rank_llms.leaderboard import (
+    generate_elo_ratings, save_leaderboard_markdown, 
+    save_leaderboard_json, display_leaderboard
+)
 
 console = Console()
 app = typer.Typer()
-
-class ModelResponse(BaseModel):
-    model: str
-    prompt: str
-    category: str
-    response: str
-    response_time: float
-    score: Optional[float] = None
-    feedback: Optional[str] = None
-    timestamp: Optional[datetime] = None
-
-class EvaluationResult(BaseModel):
-    models: List[str]
-    responses: List[ModelResponse]
-    
-    def to_dataframe(self) -> pd.DataFrame:
-        data = []
-        for response in self.responses:
-            data.append({
-                "model": response.model,
-                "category": response.category,
-                "prompt": response.prompt,
-                "score": response.score,
-                "response_time": response.response_time
-            })
-        return pd.DataFrame(data)
-    
-    def summary_dataframe(self) -> pd.DataFrame:
-        df = self.to_dataframe()
-        summary = df.groupby(["model", "category"])["score"].mean().reset_index()
-        pivot = summary.pivot(index="model", columns="category", values="score")
-        pivot["Overall"] = df.groupby("model")["score"].mean().values
-        pivot["Response Time (s)"] = df.groupby("model")["response_time"].mean().values
-        # Round the values
-        return pivot.round(2).sort_values("Overall", ascending=False)
-
-def evaluate_response(anthropic_client: Anthropic, prompt: str, response: str, category: str) -> Dict[str, Any]:
-    """Evaluate a model's response using Claude."""
-    evaluation_prompt = f"""You are evaluating the quality of an AI assistant's response to a user query. 
-Rate the response on a scale from 1-10 where 1 is terrible and 10 is perfect.
-
-Category: {category}
-
-User Query: {prompt}
-
-AI Assistant's Response: {response}
-
-Provide your evaluation in the following JSON format:
-{{
-  "score": <score>,
-  "feedback": "<brief explanation of why you gave this score>"
-}}
-
-Focus on accuracy, helpfulness, clarity, and appropriateness in your evaluation.
-"""
-    
-    logger.info(f"Calling Anthropic API to evaluate response for category: {category}")
-    try:
-        completion = anthropic_client.messages.create(
-            model="claude-3-5-sonnet-20240620",
-            max_tokens=300,
-            temperature=0,
-            system="Evaluate the quality of the given response. Return only valid JSON.",
-            messages=[{"role": "user", "content": evaluation_prompt}]
-        )
-        
-        result = completion.content[0].text
-        logger.info(f"Received evaluation from Anthropic API")
-        
-        try:
-            parsed_result = json.loads(result)
-            logger.info(f"Evaluation score: {parsed_result.get('score', 'unknown')}")
-            return parsed_result
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON response from Anthropic API: {e}")
-            logger.error(f"Raw response: {result}")
-            return {"score": 0, "feedback": f"JSON parsing error: {str(e)}"}
-    except APIError as e:
-        error_message = f"Anthropic API error: {e}"
-        logger.error(error_message)
-        console.print(f"[red]{error_message}")
-        return {"score": 0, "feedback": error_message}
-    except Exception as e:
-        error_message = f"Error evaluating response: {e}"
-        logger.error(error_message)
-        console.print(f"[red]{error_message}")
-        return {"score": 0, "feedback": f"Evaluation error: {str(e)}"}
 
 def query_model(model: str, prompt: str) -> Dict[str, Any]:
     """Query a model using Ollama."""
@@ -165,108 +86,112 @@ def query_model(model: str, prompt: str) -> Dict[str, Any]:
             "response_time": time.time() - start_time
         }
 
-def get_archive_path(model: str) -> Path:
-    """Get the path to the archive file for a model."""
-    return Path("test_archive") / f"{model.replace(':', '_').replace('/', '_')}.pkl"
+def compare_models(
+    anthropic_client: Anthropic,
+    model_a: str,
+    model_b: str,
+    prompt: str,
+    category: str
+) -> ModelComparison:
+    """Compare responses from two models for the same prompt."""
+    # Query both models
+    logger.info(f"Comparing models {model_a} vs {model_b} for prompt in category: {category}")
+    
+    # Query model A
+    result_a = query_model(model_a, prompt)
+    
+    # Query model B
+    result_b = query_model(model_b, prompt)
+    
+    # Evaluate the comparison
+    evaluation = evaluate_comparison(
+        anthropic_client,
+        prompt,
+        result_a["response"],
+        result_b["response"],
+        model_a,
+        model_b,
+        category
+    )
+    
+    # Create and return the comparison
+    return ModelComparison(
+        model_a=model_a,
+        model_b=model_b,
+        prompt=prompt,
+        category=category,
+        response_a=result_a["response"],
+        response_b=result_b["response"],
+        response_time_a=result_a["response_time"],
+        response_time_b=result_b["response_time"],
+        winner=evaluation.get("winner"),
+        reason=evaluation.get("reason")
+    )
 
-def archive_results(model: str, responses: List[ModelResponse]):
-    """Archive model test results to a file."""
-    archive_path = get_archive_path(model)
-    
-    # Ensure the directory exists
-    archive_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    logger.info(f"Archiving results for model {model} to {archive_path}")
-    try:
-        with open(archive_path, "wb") as f:
-            pickle.dump(responses, f)
-        
-        logger.info(f"Successfully archived {len(responses)} responses for model {model}")
-        console.print(f"[green]Archived results for {model} to {archive_path}")
-    except Exception as e:
-        error_message = f"Error archiving results for {model}: {e}"
-        logger.error(error_message)
-        console.print(f"[red]{error_message}")
-
-def load_archived_results(model: str) -> List[ModelResponse]:
-    """Load archived results for a model if they exist."""
-    archive_path = get_archive_path(model)
-    
-    if archive_path.exists():
-        logger.info(f"Loading archived results for model {model} from {archive_path}")
-        try:
-            with open(archive_path, "rb") as f:
-                results = pickle.load(f)
-            
-            logger.info(f"Successfully loaded {len(results)} archived responses for model {model}")
-            return results
-        except Exception as e:
-            error_message = f"Error loading archived results for {model}: {e}"
-            logger.error(error_message)
-            console.print(f"[red]{error_message}")
-            return []
-    
-    logger.info(f"No archived results found for model {model}")
-    return []
-
-def is_full_test(all_prompts: Dict[str, List[str]], categories: List[str]) -> bool:
-    """Determine if this is a full test with all prompts."""
-    for category in categories:
-        # If any category has less than 10 prompts, it's not a full test
-        if len(all_prompts.get(category, [])) < 10:
-            return False
-    
-    return True
-
-def save_results_markdown(results: EvaluationResult, output_path: str = "results.md"):
-    """Save detailed results to a markdown file."""
+def save_markdown_report(result: ComparisonResult, output_path: str = "results.md") -> None:
+    """Save detailed comparison results to a markdown file."""
     path = Path(output_path)
     
-    logger.info(f"Saving detailed results to {path}")
+    logger.info(f"Saving detailed comparison results to {path}")
     try:
         with open(path, "w") as f:
-            f.write("# LLM Evaluation Results\n\n")
+            f.write(f"# LLM Model Comparison: {result.model_a} vs {result.model_b}\n\n")
+            f.write(f"Generated on: {result.timestamp.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             
             # Write summary table
             f.write("## Summary\n\n")
-            summary_df = results.summary_dataframe()
-            f.write(summary_df.to_markdown() + "\n\n")
+            f.write("| Category | Win % for " + result.model_a + " | Win % for " + result.model_b + " | Ties % |\n")
+            f.write("|----------|" + "-" * 20 + "|" + "-" * 20 + "|" + "-" * 10 + "|\n")
             
-            # Write detailed results by category
-            f.write("## Detailed Results\n\n")
+            # Add overall results
+            f.write("| **Overall** | " + 
+                  f"{result.overall_win_percentage_a:.1f}% | " +
+                  f"{result.overall_win_percentage_b:.1f}% | " +
+                  f"{100 - result.overall_win_percentage_a - result.overall_win_percentage_b:.1f}% |\n")
             
-            # Group responses by category
+            # Add category results
+            for category, cat_result in result.category_results.items():
+                if cat_result.total > 0:
+                    f.write(f"| {category} | " +
+                          f"{cat_result.win_percentage_a:.1f}% | " +
+                          f"{cat_result.win_percentage_b:.1f}% | " +
+                          f"{cat_result.tie_percentage:.1f}% |\n")
+            
+            # Write detailed comparison results
+            f.write("\n## Detailed Comparisons\n\n")
+            
+            # Group comparisons by category
             by_category = {}
-            for response in results.responses:
-                if response.category not in by_category:
-                    by_category[response.category] = []
-                by_category[response.category].append(response)
+            for comparison in result.comparisons:
+                if comparison.category not in by_category:
+                    by_category[comparison.category] = []
+                by_category[comparison.category].append(comparison)
             
-            logger.info(f"Writing detailed results for {len(by_category)} categories")
-            for category, responses in by_category.items():
+            for category, comparisons in by_category.items():
                 f.write(f"### {category}\n\n")
                 
-                # Group by prompt
-                by_prompt = {}
-                for response in responses:
-                    if response.prompt not in by_prompt:
-                        by_prompt[response.prompt] = []
-                    by_prompt[response.prompt].append(response)
-                
-                logger.info(f"Writing {len(by_prompt)} prompts for category {category}")
-                for prompt_idx, (prompt, prompt_responses) in enumerate(by_prompt.items()):
-                    f.write(f"**Prompt {prompt_idx+1}**: {prompt}\n\n")
+                for i, comparison in enumerate(comparisons, 1):
+                    f.write(f"**Prompt {i}**: {comparison.prompt}\n\n")
                     
-                    # Sort responses by score (descending)
-                    prompt_responses.sort(key=lambda x: x.score if x.score is not None else 0, reverse=True)
+                    # Model A response
+                    f.write(f"*{comparison.model_a} (Time: {comparison.response_time_a:.2f}s)*\n\n")
+                    f.write(f"```\n{comparison.response_a}\n```\n\n")
                     
-                    for response in prompt_responses:
-                        f.write(f"*Model: {response.model} (Score: {response.score}, Time: {response.response_time:.2f}s)*\n\n")
-                        f.write(f"```\n{response.response}\n```\n\n")
-                        if response.feedback:
-                            f.write(f"**Feedback**: {response.feedback}\n\n")
-                        if response.timestamp:
-                            f.write(f"*Tested: {response.timestamp.strftime('%Y-%m-%d %H:%M:%S')}*\n\n")
+                    # Model B response
+                    f.write(f"*{comparison.model_b} (Time: {comparison.response_time_b:.2f}s)*\n\n")
+                    f.write(f"```\n{comparison.response_b}\n```\n\n")
+                    
+                    # Winner
+                    winner_text = ""
+                    if comparison.winner == "a":
+                        winner_text = f"**Winner: {comparison.model_a}**"
+                    elif comparison.winner == "b":
+                        winner_text = f"**Winner: {comparison.model_b}**"
+                    else:
+                        winner_text = "**Tie**"
+                    
+                    f.write(f"{winner_text}\n\n")
+                    f.write(f"**Reason**: {comparison.reason}\n\n")
                     
                     f.write("---\n\n")
         
@@ -278,14 +203,15 @@ def save_results_markdown(results: EvaluationResult, output_path: str = "results
         console.print(f"[red]{error_message}")
 
 @app.command()
-def main(
-    models: List[str] = typer.Argument(..., help="Models to test (must be available in Ollama)"),
-    num_prompts: int = typer.Option(10, help="Number of prompts to test per category"),
+def compare(
+    models: List[str] = typer.Argument(..., help="Models to compare (must be available in Ollama)"),
+    num_prompts: int = typer.Option(5, help="Number of prompts to test per category"),
     output: str = typer.Option("results.md", help="Output file for detailed results"),
     force_retest: bool = typer.Option(False, help="Force retesting of models even if archived results exist"),
+    update_leaderboard: bool = typer.Option(True, help="Update the leaderboard with the new results"),
     log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
 ):
-    """Test and rank LLM model responses using Ollama and Claude for evaluation."""
+    """Compare two LLM models head-to-head using Ollama and Claude for evaluation."""
     # Set log level based on command line argument
     numeric_level = getattr(logging, log_level.upper(), None)
     if not isinstance(numeric_level, int):
@@ -295,7 +221,14 @@ def main(
     logger.setLevel(numeric_level)
     logger.info(f"Log level set to {log_level}")
     
-    logger.info(f"Starting LLM ranking with models: {models}, num_prompts: {num_prompts}")
+    # Ensure we have exactly two models
+    if len(models) != 2:
+        console.print("[red]Error: You must specify exactly two models to compare")
+        logger.error("Invalid number of models provided for comparison")
+        raise typer.Exit(1)
+    
+    model_a, model_b = models
+    logger.info(f"Starting comparison of {model_a} vs {model_b}, num_prompts: {num_prompts}")
     
     # Check if ANTHROPIC_API_KEY is set
     api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -328,111 +261,153 @@ def main(
                 logger.info("User chose not to continue with unavailable model")
                 raise typer.Exit(1)
     
+    # Check if a comparison already exists and we're not forcing a retest
+    if not force_retest:
+        existing_result = load_comparison_result(model_a, model_b)
+        if existing_result:
+            logger.info(f"Found existing comparison between {model_a} and {model_b}")
+            console.print(f"[green]Found existing comparison between {model_a} and {model_b}")
+            
+            # Save the report and update the leaderboard
+            save_markdown_report(existing_result, output)
+            if update_leaderboard:
+                logger.info("Updating leaderboard with existing results")
+                elo_system = generate_elo_ratings(force_refresh=True)
+                save_leaderboard_markdown(elo_system)
+                save_leaderboard_json(elo_system)
+                display_leaderboard(elo_system)
+            
+            return existing_result
+    
     # Get prompts
     logger.info("Getting prompt categories and prompts")
     categories = get_prompt_categories()
     all_prompts = get_prompts_from_categories(categories, max_per_category=num_prompts)
-    logger.info(f"Selected {sum(len(prompts) for prompts in all_prompts.values())} prompts across {len(categories)} categories")
+    total_prompts = sum(len(prompts) for prompts in all_prompts.values())
+    logger.info(f"Selected {total_prompts} prompts across {len(categories)} categories")
     
-    # Determine if this is a full test to use archived results
-    full_test = is_full_test(all_prompts, categories)
-    logger.info(f"Test type: {'Full test' if full_test else 'Partial test'}")
+    # Initialize results
+    category_results = {
+        category: CategoryResult(
+            category=category,
+            model_a=model_a,
+            model_b=model_b
+        )
+        for category in categories
+    }
+    comparisons = []
     
-    # Load archived results for models if this is a full test and we're not forcing a retest
-    models_to_test = []
-    loaded_responses = []
-    
-    for model in models:
-        if full_test and not force_retest:
-            archived_results = load_archived_results(model)
-            if archived_results:
-                logger.info(f"Using archived results for model {model}")
-                console.print(f"[green]Loaded archived results for {model}")
-                loaded_responses.extend(archived_results)
-            else:
-                logger.info(f"No archived results found for model {model}, will test")
-                models_to_test.append(model)
-        else:
-            if force_retest:
-                logger.info(f"Force retest enabled, will test model {model}")
-            else:
-                logger.info(f"Partial test, will test model {model}")
-            models_to_test.append(model)
-    
-    results = EvaluationResult(models=models, responses=loaded_responses)
-    
-    # Only test models that need testing
-    if models_to_test:
-        total_tasks = len(models_to_test) * sum(len(prompts) for prompts in all_prompts.values())
-        logger.info(f"Beginning testing of {len(models_to_test)} models with {total_tasks} total tasks")
+    # Run the comparisons
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn()
+    ) as progress:
+        task = progress.add_task("[cyan]Comparing models...", total=total_prompts)
         
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TimeElapsedColumn()
-        ) as progress:
-            task = progress.add_task("[cyan]Testing models...", total=total_tasks)
+        for category, prompts in all_prompts.items():
+            logger.info(f"Testing category: {category} with {len(prompts)} prompts")
             
-            for model in models_to_test:
-                logger.info(f"Starting tests for model: {model}")
-                model_responses = []
+            for prompt in prompts:
+                progress.update(task, description=f"[cyan]Comparing {model_a} vs {model_b} on {category} prompt")
+                logger.info(f"Comparing prompt: {prompt[:50]}...")
                 
-                for category, prompts in all_prompts.items():
-                    logger.info(f"Testing category: {category} with {len(prompts)} prompts")
-                    for prompt in prompts:
-                        progress.update(task, description=f"[cyan]Testing {model} with {category} prompt")
-                        logger.info(f"Testing prompt: {prompt[:50]}...")
-                        
-                        # Query model
-                        model_result = query_model(model, prompt)
-                        
-                        # Evaluate response
-                        evaluation = evaluate_response(
-                            anthropic_client, 
-                            prompt, 
-                            model_result["response"], 
-                            category
-                        )
-                        
-                        # Create response object
-                        response = ModelResponse(
-                            model=model,
-                            prompt=prompt,
-                            category=category,
-                            response=model_result["response"],
-                            response_time=model_result["response_time"],
-                            score=evaluation.get("score"),
-                            feedback=evaluation.get("feedback"),
-                            timestamp=datetime.now()
-                        )
-                        
-                        # Add to model responses and results
-                        model_responses.append(response)
-                        results.responses.append(response)
-                        
-                        # Update progress
-                        progress.update(task, advance=1)
+                # Compare the models
+                comparison = compare_models(
+                    anthropic_client,
+                    model_a,
+                    model_b,
+                    prompt,
+                    category
+                )
                 
-                # Archive results if this is a full test
-                if full_test:
-                    archive_results(model, model_responses)
-    else:
-        logger.info("No models need testing, using only archived results")
+                # Update category results
+                if comparison.winner == "a":
+                    category_results[category].wins_a += 1
+                elif comparison.winner == "b":
+                    category_results[category].wins_b += 1
+                else:
+                    category_results[category].ties += 1
+                
+                # Add to comparisons list
+                comparisons.append(comparison)
+                
+                # Update progress
+                progress.update(task, advance=1)
     
-    # Save results
-    logger.info(f"Saving results to {output}")
-    save_results_markdown(results, output)
+    # Create the result
+    result = ComparisonResult(
+        model_a=model_a,
+        model_b=model_b,
+        category_results=category_results,
+        comparisons=comparisons
+    )
     
-    # Display summary table
-    logger.info("Generating summary table")
-    console.print("\n[bold green]Results Summary:[/bold green]")
-    summary_df = results.summary_dataframe()
-    console.print(summary_df)
+    # Save the result for future reference
+    save_comparison_result(result)
     
-    logger.info("Testing complete")
-    return summary_df
+    # Save the detailed report
+    save_markdown_report(result, output)
+    
+    # Update the leaderboard
+    if update_leaderboard:
+        logger.info("Updating leaderboard with new results")
+        elo_system = generate_elo_ratings(force_refresh=True)
+        save_leaderboard_markdown(elo_system)
+        save_leaderboard_json(elo_system)
+        display_leaderboard(elo_system)
+    
+    # Display summary
+    console.print("\n[bold green]Comparison Summary:[/bold green]")
+    console.print(f"[cyan]{model_a}[/cyan] vs [cyan]{model_b}[/cyan]")
+    
+    # Overall results
+    total_comparisons = result.overall_total
+    console.print(f"\nOverall: [cyan]{result.model_a}[/cyan] wins {result.overall_win_percentage_a:.1f}% ({result.overall_wins_a}/{total_comparisons}), " + 
+                 f"[cyan]{result.model_b}[/cyan] wins {result.overall_win_percentage_b:.1f}% ({result.overall_wins_b}/{total_comparisons}), " +
+                 f"Ties {100 - result.overall_win_percentage_a - result.overall_win_percentage_b:.1f}% ({result.overall_ties}/{total_comparisons})")
+    
+    # Category results
+    for category, cat_result in result.category_results.items():
+        if cat_result.total > 0:
+            console.print(f"{category}: [cyan]{model_a}[/cyan] wins {cat_result.win_percentage_a:.1f}% ({cat_result.wins_a}/{cat_result.total}), " + 
+                         f"[cyan]{model_b}[/cyan] wins {cat_result.win_percentage_b:.1f}% ({cat_result.wins_b}/{cat_result.total}), " +
+                         f"Ties {cat_result.tie_percentage:.1f}% ({cat_result.ties}/{cat_result.total})")
+    
+    return result
+
+@app.command()
+def leaderboard(
+    output: str = typer.Option("leaderboard/leaderboard.md", help="Output file for leaderboard"),
+    json_output: str = typer.Option("leaderboard/leaderboard.json", help="JSON output file for leaderboard"),
+    force_refresh: bool = typer.Option(False, help="Force refresh of ELO ratings from all comparison results"),
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+):
+    """Generate and display the leaderboard based on all comparison results."""
+    # Set log level based on command line argument
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        console.print(f"[red]Invalid log level: {log_level}")
+        raise typer.Exit(1)
+    
+    logger.setLevel(numeric_level)
+    logger.info(f"Log level set to {log_level}")
+    
+    logger.info("Generating leaderboard")
+    
+    # Generate ELO ratings
+    elo_system = generate_elo_ratings(force_refresh=force_refresh)
+    
+    # Save leaderboard files
+    save_leaderboard_markdown(elo_system, output)
+    save_leaderboard_json(elo_system, json_output)
+    
+    # Display leaderboard
+    display_leaderboard(elo_system)
+    
+    return elo_system
 
 if __name__ == "__main__":
     app()
