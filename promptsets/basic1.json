@@ -1,0 +1,38 @@
+{
+  "General Knowledge": [
+    "Compare and contrast the theories of dark matter and modified gravity (MOND) as explanations for galactic rotation curves, discussing the observational evidence that supports each theory.",
+    "Analyze the historical development and evolution of central banking systems from the 17th century to present day, examining how their roles have changed across different economic paradigms.",
+    "Explain the chemical mechanisms of neurotransmitter action in synaptic transmission, including the role of various receptor types and how psychoactive drugs modify these processes.",
+    "Describe the mathematical foundations of quantum field theory and how it reconciles quantum mechanics with special relativity, explaining the significance of the Dirac equation.",
+    "Discuss the geological evidence for the Snowball Earth hypothesis and evaluate competing theories about Earth's climate during the Neoproterozoic era.",
+    "Compare the different interpretations of quantum mechanics (Copenhagen, Many-Worlds, Pilot Wave, etc.) and analyze the philosophical implications of each regarding the nature of reality.",
+    "Analyze how modern monetary theory challenges conventional economic thinking about government spending, taxation, and inflation in sovereign currency-issuing nations.",
+    "Explain the evolutionary and ecological factors that have contributed to the development of eusociality in certain insect species but not others, providing specific examples.",
+    "Discuss the historical development of linguistic relativism from the Sapir-Whorf hypothesis to current research, examining evidence both for and against the theory that language shapes cognition.",
+    "Analyze the biochemical pathways involved in cellular autophagy and explain its significance in normal cellular functioning, aging, and disease states."
+  ],
+  "Programming": [
+    "Design and implement a thread-safe LRU (Least Recently Used) cache in Python with a specified capacity that handles concurrent access. Include proper synchronization mechanisms and discuss the performance implications of your design choices.",
+    "Write a recursive algorithm to find all possible valid colorings of a graph with m colors such that no adjacent vertices have the same color. Analyze its time complexity and provide an optimization to improve performance on large graphs.",
+    "Implement a system for detecting and preventing race conditions in a distributed database that handles concurrent transactions. Explain your approach to deadlock detection and prevention.",
+    "Create a custom parser for a simplified query language that allows filtering, aggregation, and joining of datasets. Your implementation should handle parsing, validation, and execution of queries with proper error handling.",
+    "Design a system for real-time anomaly detection in streaming time-series data. Implement an algorithm that adapts its thresholds automatically as data patterns evolve, explaining how it handles different types of anomalies.",
+    "Implement a memory-efficient trie data structure for autocomplete suggestions that can handle millions of strings. Include functionality to return the top N suggestions based on frequency and edit distance from the input.",
+    "Write an algorithm to detect cycles in a directed graph and classify them according to their properties. Implement a visualization method that highlights different types of cycles with different colors.",
+    "Design and implement a backpressure mechanism for a system that processes messages from multiple producers at varying rates. Your solution should prevent memory overflow while maximizing throughput.",
+    "Implement a custom garbage collection algorithm for a simple programming language runtime. Explain how it identifies unreachable objects and handles memory fragmentation.",
+    "Create a bloom filter implementation with dynamic scaling that maintains a target false positive rate as the number of elements grows. Analyze the space-time tradeoffs of your approach."
+  ],
+  "Reasoning": [
+    "You have 12 identical-looking coins, one of which is counterfeit and has a slightly different weight (you don't know if it's heavier or lighter). Using a balance scale, how can you identify the counterfeit coin and determine whether it's heavier or lighter in just 3 weighings? Explain your reasoning step by step.",
+    "Consider an infinite chess board with a knight placed on a square. If the knight makes random moves (each of the 8 possible moves having equal probability whenever all 8 are available), what is the probability that the knight will return to its starting square at some point? Provide a mathematical argument.",
+    "In a room of just 23 people, what is the probability that at least two people share the same birthday? Explain your calculation and why this probability is much higher than most people intuitively expect.",
+    "You have two identical glass spheres. You're in a 100-story building, and you need to determine the highest floor from which the spheres can be dropped without breaking. What strategy minimizes the worst-case number of drops needed? Analyze the problem mathematically.",
+    "Six people are at a party. Prove that either at least three of them all know each other, or at least three of them all don't know each other. (Assume that 'knowing' is a symmetric relation: if A knows B, then B knows A.) Use graph theory in your explanation.",
+    "You have 100 prisoners numbered 1 to a 100, and 100 boxes also numbered 1 to 100. In each box, there is a slip of paper with a prisoner's number on it. Each prisoner is allowed to open up to 50 boxes to try to find their own number. The prisoners will all be freed if every prisoner finds their number. The prisoners can devise a strategy beforehand, but once the searching begins, they cannot communicate. What strategy gives them the best chance of being freed, and what is that probability?",
+    "Consider an ant walking on the edges of a cube, starting at one vertex. At each vertex, the ant randomly chooses one of the three connected edges to walk along next. What is the expected number of edges the ant will walk before returning to the starting vertex? Show your work.",
+    "Four people need to cross a bridge at night. They have one flashlight, and the bridge can only support two people at once. The four people take 1, 2, 5, and 10 minutes respectively to cross the bridge. When two people cross together, they move at the speed of the slower person. What is the minimum time needed for all four people to cross the bridge? Prove that your solution is optimal.",
+    "Consider a system where you have 5 processes and 3 resources. Each process may claim up to 1 unit of each resource type, and there are 2 units of each resource type available. Is this system guaranteed to be deadlock-free? Provide a proof or counterexample.",
+    "There are 7 bridge crossing points over a river that runs east to west. There are 5 villages on the north side and 5 on the south side of the river. What is the minimum number of crossings needed for everyone to be able to travel from any village to any other village if bridges can be placed anywhere? Justify your answer using graph theory."
+  ]
+}

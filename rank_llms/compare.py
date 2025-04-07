@@ -112,33 +112,48 @@ class ComparisonResult(BaseModel):
             return 0
         return (self.overall_wins_b / self.overall_total) * 100
 
-def get_comparison_file_path(model_a: str, model_b: str) -> Path:
+def get_comparison_file_path(model_a: str, model_b: str, promptset: str = "basic1") -> Path:
     """Get the path to the comparison result file for two models."""
     # Sort model names to ensure consistent file naming regardless of order
     models = sorted([model_a, model_b])
-    filename = f"{models[0].replace(':', '_').replace('/', '_')}__vs__{models[1].replace(':', '_').replace('/', '_')}.pkl"
-    return Path("test_archive") / "comparisons" / filename
+    filename = f"{models[0].replace(':', '_').replace('/', '_')}__vs__{models[1].replace(':', '_').replace('/', '_')}.json"
+    return Path("test_archive") / promptset / "comparisons" / filename
 
-def save_comparison_result(result: ComparisonResult) -> None:
+def save_comparison_result(result: ComparisonResult, promptset: str = "basic1") -> None:
     """Save a comparison result to a file."""
-    file_path = get_comparison_file_path(result.model_a, result.model_b)
+    file_path = get_comparison_file_path(result.model_a, result.model_b, promptset)
     file_path.parent.mkdir(parents=True, exist_ok=True)
     
     try:
-        with open(file_path, "wb") as f:
-            pickle.dump(result, f)
+        # Convert to dict and save as JSON
+        result_dict = result.dict()
+        # Convert datetime to string for JSON serialization
+        result_dict["timestamp"] = result_dict["timestamp"].isoformat()
+        for comparison in result_dict["comparisons"]:
+            comparison["timestamp"] = comparison["timestamp"].isoformat()
+            
+        with open(file_path, "w") as f:
+            json.dump(result_dict, f, indent=2)
         logger.info(f"Saved comparison result to {file_path}")
     except Exception as e:
         logger.error(f"Error saving comparison result: {e}")
 
-def load_comparison_result(model_a: str, model_b: str) -> Optional[ComparisonResult]:
+def load_comparison_result(model_a: str, model_b: str, promptset: str = "basic1") -> Optional[ComparisonResult]:
     """Load a comparison result from a file if it exists."""
-    file_path = get_comparison_file_path(model_a, model_b)
+    file_path = get_comparison_file_path(model_a, model_b, promptset)
     
     if file_path.exists():
         try:
-            with open(file_path, "rb") as f:
-                result = pickle.load(f)
+            with open(file_path, "r") as f:
+                result_dict = json.load(f)
+            
+            # Convert timestamp strings back to datetime
+            result_dict["timestamp"] = datetime.fromisoformat(result_dict["timestamp"])
+            for comparison in result_dict["comparisons"]:
+                comparison["timestamp"] = datetime.fromisoformat(comparison["timestamp"])
+            
+            # Recreate Pydantic model from dict
+            result = ComparisonResult(**result_dict)
             logger.info(f"Loaded comparison result from {file_path}")
             return result
         except Exception as e:

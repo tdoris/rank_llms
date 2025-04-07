@@ -18,9 +18,10 @@ class EloRatingSystem:
     Implements an ELO rating system for ranking LLM models based on head-to-head comparisons.
     """
     
-    def __init__(self, k_factor: int = DEFAULT_K, starting_elo: int = DEFAULT_STARTING_ELO):
+    def __init__(self, k_factor: int = DEFAULT_K, starting_elo: int = DEFAULT_STARTING_ELO, promptset: str = "basic1"):
         self.k_factor = k_factor
         self.starting_elo = starting_elo
+        self.promptset = promptset
         self.ratings: Dict[str, float] = {}
         self.match_history: List[Dict] = []
     
@@ -120,6 +121,7 @@ class EloRatingSystem:
             "ratings": self.ratings,
             "k_factor": self.k_factor,
             "starting_elo": self.starting_elo,
+            "promptset": self.promptset,
             "match_history": self.match_history
         }
         
@@ -129,26 +131,30 @@ class EloRatingSystem:
         logger.info(f"Saved ELO ratings to {path}")
     
     @classmethod
-    def load_ratings(cls, file_path: str) -> 'EloRatingSystem':
+    def load_ratings(cls, file_path: str, promptset: str = "basic1") -> 'EloRatingSystem':
         """Load ratings from a file."""
         path = Path(file_path)
         
         if not path.exists():
-            logger.warning(f"Ratings file {path} does not exist, creating new ELO system")
-            return cls()
+            logger.warning(f"Ratings file {path} does not exist, creating new ELO system with promptset '{promptset}'")
+            return cls(promptset=promptset)
         
         try:
             with open(path, 'r') as f:
                 data = json.load(f)
             
+            # Use the promptset from the file if available, otherwise use the provided one
+            file_promptset = data.get('promptset', promptset)
+            
             elo_system = cls(
                 k_factor=data.get('k_factor', DEFAULT_K),
-                starting_elo=data.get('starting_elo', DEFAULT_STARTING_ELO)
+                starting_elo=data.get('starting_elo', DEFAULT_STARTING_ELO),
+                promptset=file_promptset
             )
             elo_system.ratings = data.get('ratings', {})
             elo_system.match_history = data.get('match_history', [])
             
-            logger.info(f"Loaded ELO ratings from {path} with {len(elo_system.ratings)} models")
+            logger.info(f"Loaded ELO ratings from {path} with {len(elo_system.ratings)} models for promptset '{elo_system.promptset}'")
             return elo_system
         
         except Exception as e:

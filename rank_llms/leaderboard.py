@@ -18,23 +18,23 @@ from rank_llms.compare import load_comparison_result, update_elo_ratings
 logger = logging.getLogger("rank_llms")
 console = Console()
 
-def find_all_comparison_files() -> List[Path]:
-    """Find all comparison result files in the archive."""
-    pattern = str(Path("test_archive") / "comparisons" / "*.pkl")
+def find_all_comparison_files(promptset: str = "basic1") -> List[Path]:
+    """Find all comparison result files in the archive for a specific promptset."""
+    pattern = str(Path("test_archive") / promptset / "comparisons" / "*.json")
     return [Path(file) for file in glob.glob(pattern)]
 
-def generate_elo_ratings(force_refresh: bool = False) -> EloRatingSystem:
-    """Generate ELO ratings from all comparison results."""
-    elo_file = "leaderboard/elo_ratings.json"
+def generate_elo_ratings(force_refresh: bool = False, promptset: str = "basic1") -> EloRatingSystem:
+    """Generate ELO ratings from all comparison results for a specific promptset."""
+    elo_file = f"leaderboard/{promptset}_elo_ratings.json"
     Path("leaderboard").mkdir(parents=True, exist_ok=True)
     
     # If not forcing refresh and ratings exist, just load them
     if not force_refresh and Path(elo_file).exists():
-        return EloRatingSystem.load_ratings(elo_file)
+        return EloRatingSystem.load_ratings(elo_file, promptset=promptset)
     
-    # Find all comparison files
-    comparison_files = find_all_comparison_files()
-    logger.info(f"Found {len(comparison_files)} comparison files")
+    # Find all comparison files for this promptset
+    comparison_files = find_all_comparison_files(promptset)
+    logger.info(f"Found {len(comparison_files)} comparison files for promptset '{promptset}'")
     
     # Load all comparison results
     results = []
@@ -42,7 +42,7 @@ def generate_elo_ratings(force_refresh: bool = False) -> EloRatingSystem:
         try:
             # Extract model names from filename
             filename = file_path.name
-            model_part = filename.replace(".pkl", "")
+            model_part = filename.replace(".json", "")
             models = model_part.split("__vs__")
             
             if len(models) != 2:
@@ -53,7 +53,7 @@ def generate_elo_ratings(force_refresh: bool = False) -> EloRatingSystem:
             model_b = models[1].replace("_", ":")
             
             # Load the comparison result
-            result = load_comparison_result(model_a, model_b)
+            result = load_comparison_result(model_a, model_b, promptset=promptset)
             if result:
                 results.append(result)
         except Exception as e:
@@ -61,12 +61,15 @@ def generate_elo_ratings(force_refresh: bool = False) -> EloRatingSystem:
     
     # Update ELO ratings based on all comparisons
     elo_system = update_elo_ratings(results, elo_file)
-    logger.info(f"Updated ELO ratings based on {len(results)} comparison results")
+    logger.info(f"Updated ELO ratings based on {len(results)} comparison results for promptset '{promptset}'")
     
     return elo_system
 
-def save_leaderboard_markdown(elo_system: EloRatingSystem, output_path: str = "leaderboard/leaderboard.md") -> None:
+def save_leaderboard_markdown(elo_system: EloRatingSystem, output_path: str = None) -> None:
     """Save the leaderboard as a markdown file."""
+    # Use promptset-specific output path if not provided
+    if output_path is None:
+        output_path = f"leaderboard/{elo_system.promptset}_leaderboard.md"
     # Get all models and separate regular models from category-specific ones
     all_models = elo_system.get_all_models()
     regular_models = {model for model in all_models if "__" not in model}
@@ -123,8 +126,11 @@ def save_leaderboard_markdown(elo_system: EloRatingSystem, output_path: str = "l
     
     logger.info(f"Saved leaderboard to {output_file}")
 
-def save_leaderboard_json(elo_system: EloRatingSystem, output_path: str = "leaderboard/leaderboard.json") -> None:
+def save_leaderboard_json(elo_system: EloRatingSystem, output_path: str = None) -> None:
     """Save the leaderboard as a JSON file."""
+    # Use promptset-specific output path if not provided
+    if output_path is None:
+        output_path = f"leaderboard/{elo_system.promptset}_leaderboard.json"
     # Get all models and separate regular models from category-specific ones
     all_models = elo_system.get_all_models()
     regular_models = {model for model in all_models if "__" not in model}

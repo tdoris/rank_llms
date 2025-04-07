@@ -206,6 +206,7 @@ def save_markdown_report(result: ComparisonResult, output_path: str = "results.m
 def compare(
     models: List[str] = typer.Argument(..., help="Models to compare (must be available in Ollama)"),
     num_prompts: int = typer.Option(5, help="Number of prompts to test per category"),
+    promptset: str = typer.Option("basic1", help="Name of the promptset to use"),
     output: str = typer.Option("results.md", help="Output file for detailed results"),
     force_retest: bool = typer.Option(False, help="Force retesting of models even if archived results exist"),
     update_leaderboard: bool = typer.Option(True, help="Update the leaderboard with the new results"),
@@ -263,16 +264,16 @@ def compare(
     
     # Check if a comparison already exists and we're not forcing a retest
     if not force_retest:
-        existing_result = load_comparison_result(model_a, model_b)
+        existing_result = load_comparison_result(model_a, model_b, promptset)
         if existing_result:
-            logger.info(f"Found existing comparison between {model_a} and {model_b}")
-            console.print(f"[green]Found existing comparison between {model_a} and {model_b}")
+            logger.info(f"Found existing comparison between {model_a} and {model_b} using promptset '{promptset}'")
+            console.print(f"[green]Found existing comparison between {model_a} and {model_b} using promptset '{promptset}'")
             
             # Save the report and update the leaderboard
             save_markdown_report(existing_result, output)
             if update_leaderboard:
-                logger.info("Updating leaderboard with existing results")
-                elo_system = generate_elo_ratings(force_refresh=True)
+                logger.info(f"Updating leaderboard with existing results for promptset '{promptset}'")
+                elo_system = generate_elo_ratings(force_refresh=True, promptset=promptset)
                 save_leaderboard_markdown(elo_system)
                 save_leaderboard_json(elo_system)
                 display_leaderboard(elo_system)
@@ -280,11 +281,11 @@ def compare(
             return existing_result
     
     # Get prompts
-    logger.info("Getting prompt categories and prompts")
-    categories = get_prompt_categories()
-    all_prompts = get_prompts_from_categories(categories, max_per_category=num_prompts)
+    logger.info(f"Getting prompt categories and prompts from promptset '{promptset}'")
+    categories = get_prompt_categories(promptset_name=promptset)
+    all_prompts = get_prompts_from_categories(categories, max_per_category=num_prompts, promptset_name=promptset)
     total_prompts = sum(len(prompts) for prompts in all_prompts.values())
-    logger.info(f"Selected {total_prompts} prompts across {len(categories)} categories")
+    logger.info(f"Selected {total_prompts} prompts across {len(categories)} categories from promptset '{promptset}'")
     
     # Initialize results
     category_results = {
@@ -346,15 +347,15 @@ def compare(
     )
     
     # Save the result for future reference
-    save_comparison_result(result)
+    save_comparison_result(result, promptset=promptset)
     
     # Save the detailed report
     save_markdown_report(result, output)
     
     # Update the leaderboard
     if update_leaderboard:
-        logger.info("Updating leaderboard with new results")
-        elo_system = generate_elo_ratings(force_refresh=True)
+        logger.info(f"Updating leaderboard with new results for promptset '{promptset}'")
+        elo_system = generate_elo_ratings(force_refresh=True, promptset=promptset)
         save_leaderboard_markdown(elo_system)
         save_leaderboard_json(elo_system)
         display_leaderboard(elo_system)
@@ -380,8 +381,9 @@ def compare(
 
 @app.command()
 def leaderboard(
-    output: str = typer.Option("leaderboard/leaderboard.md", help="Output file for leaderboard"),
-    json_output: str = typer.Option("leaderboard/leaderboard.json", help="JSON output file for leaderboard"),
+    promptset: str = typer.Option("basic1", help="Name of the promptset to use for the leaderboard"),
+    output: str = typer.Option(None, help="Output file for leaderboard (defaults to leaderboard/<promptset>_leaderboard.md)"),
+    json_output: str = typer.Option(None, help="JSON output file for leaderboard (defaults to leaderboard/<promptset>_leaderboard.json)"),
     force_refresh: bool = typer.Option(False, help="Force refresh of ELO ratings from all comparison results"),
     log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
 ):
@@ -395,10 +397,10 @@ def leaderboard(
     logger.setLevel(numeric_level)
     logger.info(f"Log level set to {log_level}")
     
-    logger.info("Generating leaderboard")
+    logger.info(f"Generating leaderboard for promptset '{promptset}'")
     
     # Generate ELO ratings
-    elo_system = generate_elo_ratings(force_refresh=force_refresh)
+    elo_system = generate_elo_ratings(force_refresh=force_refresh, promptset=promptset)
     
     # Save leaderboard files
     save_leaderboard_markdown(elo_system, output)

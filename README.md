@@ -5,12 +5,11 @@ A Python tool to compare and rank local LLMs running via Ollama.
 ## Features
 
 - Compare models head-to-head with direct A/B evaluations
-- Evaluate across 5 different categories with challenging prompts:
-  - General Knowledge
-  - Creative Writing  
-  - Programming
-  - Reasoning
-  - Summarization
+- Evaluate across different categories with challenging prompts in customizable promptsets
+  - Default categories include:
+    - General Knowledge
+    - Programming
+    - Reasoning
 - Use Claude to judge which model's response is better
 - Generate comprehensive comparison reports
 - Build an ELO-based leaderboard for overall model ranking
@@ -75,6 +74,9 @@ rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k
 # Compare with fewer prompts for a quicker test
 rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --num-prompts 2
 
+# Use a specific promptset
+rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --promptset advanced1
+
 # Specify a custom output file
 rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --output custom-results.md
 
@@ -82,7 +84,7 @@ rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --output custom-results.
 rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --force-retest
 
 # Set a specific log level
-rank-llms compare gemma3:27b --log-level DEBUG
+rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --log-level DEBUG
 ```
 
 ### Generate Leaderboard
@@ -90,6 +92,9 @@ rank-llms compare gemma3:27b --log-level DEBUG
 ```bash
 # Generate and display the leaderboard
 rank-llms leaderboard
+
+# Specify a promptset for the leaderboard
+rank-llms leaderboard --promptset advanced1
 
 # Force refreshing of all ELO ratings from comparison results
 rank-llms leaderboard --force-refresh
@@ -111,11 +116,20 @@ rank-llms leaderboard --output custom-leaderboard.md --json-output custom-leader
 - ELO-based leaderboard in markdown and JSON formats
 - Log files stored in the `logs` directory with timestamped filenames
 
-## Archiving System
+## Promptsets and Archiving System
 
-The app maintains an archive of model comparisons in the `test_archive/comparisons` directory:
+The app uses customizable promptsets stored in JSON files:
 
-- Each comparison is stored in a separate file named after the two models
+- Promptsets are located in the `promptsets` directory
+- Each promptset is a JSON file containing categories and prompts
+- The default promptset is `basic1.json`
+- You can create your own promptsets by adding new JSON files
+- Use the `--promptset` option to specify which promptset to use
+
+The app maintains an archive of model comparisons in the `test_archive/<promptset>/comparisons` directory:
+
+- Comparisons are organized by promptset
+- Each comparison is stored in a separate JSON file named after the two models
 - When you request a comparison that has already been performed, the results are loaded from the archive
 - This allows for building a comprehensive leaderboard without repeating tests
 - The `--force-retest` flag can be used to force a new comparison even if archived results exist
@@ -128,7 +142,8 @@ The app uses an ELO rating system to rank models based on head-to-head compariso
 - Ratings are updated after each comparison based on win/loss results
 - The leaderboard displays models ranked by their ELO rating
 - Separate ELO ratings are maintained for each category
-- The system automatically builds a global leaderboard from all comparison results
+- Separate leaderboards are maintained for each promptset
+- The system automatically builds leaderboards from all comparison results
 
 ## Logging System
 
