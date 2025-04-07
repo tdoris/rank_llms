@@ -44,7 +44,7 @@ def setup_logging(level=logging.INFO):
 # Initialize logger
 logger = setup_logging()
 
-from rank_llms.prompts import get_prompt_categories, get_prompts_from_categories
+from rank_llms.prompts import get_prompt_categories, get_prompts_from_categories, load_promptset
 from rank_llms.compare import (
     ModelComparison, CategoryResult, ComparisonResult, 
     evaluate_comparison, save_comparison_result, load_comparison_result
@@ -378,6 +378,43 @@ def compare(
                          f"Ties {cat_result.tie_percentage:.1f}% ({cat_result.ties}/{cat_result.total})")
     
     return result
+
+@app.command()
+def promptset_info(
+    promptset: str = typer.Option("basic1", help="Name of the promptset to display information about"),
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+):
+    """Display information about a promptset."""
+    # Set log level based on command line argument
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        console.print(f"[red]Invalid log level: {log_level}")
+        raise typer.Exit(1)
+    
+    logger.setLevel(numeric_level)
+    logger.info(f"Log level set to {log_level}")
+    
+    try:
+        # Load the promptset
+        promptset_data = load_promptset(promptset)
+        
+        # Display information
+        console.print(f"\n[bold green]Promptset: {promptset}[/bold green]")
+        console.print(f"Categories: {len(promptset_data)}")
+        
+        for category, prompts in promptset_data.items():
+            console.print(f"\n[bold cyan]{category}[/bold cyan] ({len(prompts)} prompts):")
+            
+            for i, prompt in enumerate(prompts, 1):
+                # Truncate long prompts for display
+                truncated = prompt[:100] + "..." if len(prompt) > 100 else prompt
+                console.print(f"  {i}. {truncated}")
+        
+        return promptset_data
+    
+    except Exception as e:
+        console.print(f"[red]Error loading promptset {promptset}: {e}")
+        raise typer.Exit(1)
 
 @app.command()
 def leaderboard(

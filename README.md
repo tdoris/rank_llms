@@ -75,7 +75,7 @@ rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k
 rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --num-prompts 2
 
 # Use a specific promptset
-rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --promptset advanced1
+rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --promptset coding101
 
 # Specify a custom output file
 rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --output custom-results.md
@@ -87,6 +87,16 @@ rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --force-retest
 rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --log-level DEBUG
 ```
 
+### View Promptset Information
+
+```bash
+# Display information about the default promptset
+rank-llms promptset-info
+
+# Display information about a specific promptset
+rank-llms promptset-info --promptset coding101
+```
+
 ### Generate Leaderboard
 
 ```bash
@@ -94,7 +104,7 @@ rank-llms compare gemma3:27b llama3.1:70b-instruct-q2_k --log-level DEBUG
 rank-llms leaderboard
 
 # Specify a promptset for the leaderboard
-rank-llms leaderboard --promptset advanced1
+rank-llms leaderboard --promptset coding101
 
 # Force refreshing of all ELO ratings from comparison results
 rank-llms leaderboard --force-refresh
@@ -123,8 +133,10 @@ The app uses customizable promptsets stored in JSON files:
 - Promptsets are located in the `promptsets` directory
 - Each promptset is a JSON file containing categories and prompts
 - The default promptset is `basic1.json`
+- A programming-specific promptset called `coding101.json` is included
 - You can create your own promptsets by adding new JSON files
 - Use the `--promptset` option to specify which promptset to use
+- Use the `promptset-info` command to view the contents of a promptset
 
 The app maintains an archive of model comparisons in the `test_archive/<promptset>/comparisons` directory:
 
