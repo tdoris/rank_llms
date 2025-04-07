@@ -5,10 +5,8 @@ def get_prompt_categories() -> List[str]:
     """Return the categories of prompts available for testing."""
     return [
         "General Knowledge",
-        "Creative Writing",
         "Programming",
-        "Reasoning",
-        "Summarization"
+        "Reasoning"
     ]
 
 def get_prompts_from_categories(categories: List[str], max_per_category: int = 10) -> Dict[str, List[str]]:
