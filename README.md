@@ -1,6 +1,8 @@
 # Rank LLMs
 
-A Python tool to compare and rank local LLMs running via Ollama.
+Rank-LLMs is a CLI tool for evaluating local LLMs via Ollama. It runs A/B tests on customizable prompt sets—letting you compare models on tasks that matter to you—and uses an AI judge to pick the better response. Results are scored with an Elo-based system and output as clear, side-by-side reports. Easy to extend with your own prompt sets for domain-specific evaluations.
+
+Requires: ollama, Anthropic API key. 
 
 ## Features
 
