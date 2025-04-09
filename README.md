@@ -17,6 +17,7 @@ Requires: ollama, Anthropic API key.
 - Build an ELO-based leaderboard for overall model ranking
 - View side-by-side comparisons with winner explanations
 - Automatically archive comparison results for reuse
+- Get suggestions for additional tests to improve ranking confidence
 - Comprehensive logging system
   - Logs all operations to timestamped log files
   - Tracks Anthropic API calls and errors
@@ -97,6 +98,19 @@ rank-llms promptset-info
 
 # Display information about a specific promptset
 rank-llms promptset-info --promptset coding101
+```
+
+### Suggest Additional Tests
+
+```bash
+# Suggest additional tests to improve ranking confidence
+rank-llms suggest-tests
+
+# Suggest tests for a specific promptset
+rank-llms suggest-tests --promptset coding101
+
+# Limit the number of suggestions
+rank-llms suggest-tests --max-suggestions 5
 ```
 
 ### Generate Leaderboard

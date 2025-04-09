@@ -53,6 +53,7 @@ from rank_llms.leaderboard import (
     generate_elo_ratings, save_leaderboard_markdown, 
     save_leaderboard_json, display_leaderboard
 )
+from rank_llms.analyzer import suggest_additional_tests
 
 console = Console()
 app = typer.Typer()
@@ -415,6 +416,28 @@ def promptset_info(
     except Exception as e:
         console.print(f"[red]Error loading promptset {promptset}: {e}")
         raise typer.Exit(1)
+
+@app.command()
+def suggest_tests(
+    promptset: str = typer.Option("basic1", help="Name of the promptset to analyze"),
+    max_suggestions: int = typer.Option(10, help="Maximum number of suggestions to display"),
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+):
+    """Analyze test archives and suggest additional tests to run for increasing ranking confidence."""
+    # Set log level based on command line argument
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        console.print(f"[red]Invalid log level: {log_level}")
+        raise typer.Exit(1)
+    
+    logger.setLevel(numeric_level)
+    logger.info(f"Log level set to {log_level}")
+    
+    # Suggest additional tests
+    logger.info(f"Analyzing test archives for promptset '{promptset}'")
+    suggestions = suggest_additional_tests(promptset, max_suggestions)
+    
+    return suggestions
 
 @app.command()
 def leaderboard(
