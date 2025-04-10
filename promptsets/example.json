@@ -1,0 +1,10 @@
+{
+  "Example Category 1": [
+    "This is an example prompt in the first category",
+    "This is another example prompt in the first category"
+  ],
+  "Example Category 2": [
+    "This is an example prompt in the second category",
+    "This is another example prompt in the second category"
+  ]
+}
