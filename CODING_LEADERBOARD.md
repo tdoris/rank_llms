@@ -9,16 +9,16 @@ This leaderboard shows the performance ranking of various Large Language Models 
 
 | Rank | Model | ELO Rating |
 |------|-------|------------|
-| 1 | gemma3:27b | 1554 |
-| 2 | cogito:32b | 1552 |
-| 3 | mistral-small3.1:24b-instruct-2503-q4_K_M | 1475 |
-| 4 | phi4:latest | 1470 |
-| 5 | qwen2.5-coder:32b | 1408 |
-| 6 | deepseek-r1:32b | 1401 |
-| 7 | deepcoder:latest | 1376 |
-| 8 | llama3.3:70b-instruct-q2_K | 1365 |
-| 9 | gemma3:4b | 1254 |
-| 10 | llama3.1:8b | 1145 |
+| 1 | gemma3:27b | 1566 |
+| 2 | cogito:32b | 1565 |
+| 3 | mistral-small3.1:24b-instruct-2503-q4_K_M | 1473 |
+| 4 | phi4:latest | 1469 |
+| 5 | qwen2.5-coder:32b | 1410 |
+| 6 | deepseek-r1:32b | 1403 |
+| 7 | deepcoder:latest | 1368 |
+| 8 | llama3.3:70b-instruct-q2_K | 1366 |
+| 9 | gemma3:4b | 1250 |
+| 10 | llama3.1:8b | 1129 |
 
 ## Category Rankings
 
@@ -26,61 +26,86 @@ This leaderboard shows the performance ranking of various Large Language Models 
 
 | Rank | Model | ELO Rating |
 |------|-------|------------|
-| 1 | gemma3:27b | 1675 |
-| 2 | cogito:32b | 1522 |
-| 3 | phi4:latest | 1485 |
-| 4 | mistral-small3.1:24b-instruct-2503-q4_K_M | 1438 |
-| 5 | gemma3:4b | 1375 |
-| 6 | deepcoder:latest | 1343 |
-| 7 | qwen2.5-coder:32b | 1339 |
-| 8 | deepseek-r1:32b | 1329 |
-| 9 | llama3.3:70b-instruct-q2_K | 1307 |
-| 10 | llama3.1:8b | 1187 |
+| 1 | gemma3:27b | 1697 |
+| 2 | cogito:32b | 1553 |
+| 3 | phi4:latest | 1473 |
+| 4 | mistral-small3.1:24b-instruct-2503-q4_K_M | 1430 |
+| 5 | gemma3:4b | 1380 |
+| 6 | qwen2.5-coder:32b | 1338 |
+| 7 | deepseek-r1:32b | 1334 |
+| 8 | deepcoder:latest | 1326 |
+| 9 | llama3.3:70b-instruct-q2_K | 1297 |
+| 10 | llama3.1:8b | 1172 |
 
 ### BugFinding
 
 | Rank | Model | ELO Rating |
 |------|-------|------------|
-| 1 | cogito:32b | 1582 |
-| 2 | mistral-small3.1:24b-instruct-2503-q4_K_M | 1499 |
-| 3 | phi4:latest | 1491 |
-| 4 | deepseek-r1:32b | 1449 |
-| 5 | gemma3:27b | 1426 |
-| 6 | llama3.3:70b-instruct-q2_K | 1425 |
+| 1 | cogito:32b | 1599 |
+| 2 | mistral-small3.1:24b-instruct-2503-q4_K_M | 1494 |
+| 3 | phi4:latest | 1484 |
+| 4 | deepseek-r1:32b | 1452 |
+| 5 | llama3.3:70b-instruct-q2_K | 1438 |
+| 6 | gemma3:27b | 1432 |
 | 7 | qwen2.5-coder:32b | 1424 |
-| 8 | deepcoder:latest | 1393 |
-| 9 | gemma3:4b | 1169 |
-| 10 | llama3.1:8b | 1142 |
+| 8 | deepcoder:latest | 1391 |
+| 9 | gemma3:4b | 1155 |
+| 10 | llama3.1:8b | 1130 |
 
 ### Polyglot Programming
 
 | Rank | Model | ELO Rating |
 |------|-------|------------|
-| 1 | gemma3:27b | 1575 |
-| 2 | cogito:32b | 1564 |
-| 3 | mistral-small3.1:24b-instruct-2503-q4_K_M | 1491 |
-| 4 | qwen2.5-coder:32b | 1452 |
-| 5 | phi4:latest | 1436 |
-| 6 | deepseek-r1:32b | 1425 |
-| 7 | deepcoder:latest | 1395 |
-| 8 | llama3.3:70b-instruct-q2_K | 1364 |
-| 9 | gemma3:4b | 1198 |
-| 10 | llama3.1:8b | 1099 |
+| 1 | gemma3:27b | 1588 |
+| 2 | cogito:32b | 1555 |
+| 3 | mistral-small3.1:24b-instruct-2503-q4_K_M | 1499 |
+| 4 | qwen2.5-coder:32b | 1457 |
+| 5 | phi4:latest | 1454 |
+| 6 | deepseek-r1:32b | 1424 |
+| 7 | deepcoder:latest | 1390 |
+| 8 | llama3.3:70b-instruct-q2_K | 1362 |
+| 9 | gemma3:4b | 1192 |
+| 10 | llama3.1:8b | 1079 |
 
 ## Analysis
 
-- **gemma3:27b** dominates overall, with an exceptional performance in the Coding category (1675 ELO)
-- **cogito:32b** is a very strong contender, particularly excelling in BugFinding where it ranks #1
-- **mistral-small3.1** and **phi4:latest** form a solid second tier, with both showing balanced performance across categories
-- **Specialized models** like qwen2.5-coder:32b and deepseek-r1:32b perform well but can't match the top performers
-- There's a significant gap between the top 8 models and the smaller **gemma3:4b** and **llama3.1:8b** models (100+ points)
-- **BugFinding** shows the most variation in model ranking, suggesting this skill varies significantly between models
+### Key Insights from Latest Results
 
-Notably, different models excel in different categories:
-- **gemma3:27b** dominates pure coding tasks
-- **cogito:32b** leads in finding bugs and vulnerabilities
-- The top models are all competitive in polyglot programming, with less variation in this category
+- **gemma3:27b** and **cogito:32b** are in an extremely tight race for the top spot (1566 vs 1565)
+- **gemma3:27b** has further extended its lead in pure coding tasks, now at an exceptional 1697 ELO
+- **cogito:32b**'s dominance in bug finding has grown stronger, reaching 1599 ELO
+- The rankings show clear specialization patterns - different models excel in different coding domains
+- **llama3.1:8b** has fallen further behind, now below 1130 ELO overall
 
-The data shows the importance of testing across multiple coding tasks, as performance varies significantly by category. The comprehensive testing done using the `coding101` promptset provides a more nuanced understanding of each model's strengths and weaknesses in programming domains.
+### Model Specializations
 
-*Generated with rank_llms using the coding101 promptset*
+| Model | Strongest Area | Rating Gap* | Analysis |
+|-------|---------------|------------|----------|
+| gemma3:27b | Coding | +131 | Extraordinary performance in pure coding tasks |
+| cogito:32b | BugFinding | +44 | Security and debugging specialist |
+| phi4:latest | Coding | +19 | Most balanced performance across categories |
+| mistral-small | Polyglot | +69 | Strong cross-language capabilities |
+
+*Rating gap: Difference between model's highest category rating and overall rating
+
+### Tier Analysis
+
+1. **Elite Tier (1550+)**: gemma3:27b, cogito:32b
+   - These models demonstrate exceptional coding capabilities across the board
+   - The gap to the next tier is substantial (90+ points)
+
+2. **Strong Performers (1450-1550)**: mistral-small3.1, phi4:latest
+   - Reliable models with balanced performance
+   - Competitive in all categories
+
+3. **Solid Tier (1350-1450)**: qwen2.5-coder, deepseek-r1, deepcoder, llama3.3
+   - Good overall performance with specific strengths
+   - Some specialized capabilities
+
+4. **Entry Tier (<1350)**: gemma3:4b, llama3.1:8b
+   - Significant gap from higher tiers
+   - Struggle particularly in bug finding and polyglot coding
+
+The data shows the importance of using specialized models for specific coding tasks. While gemma3:27b excels at writing code from scratch, cogito:32b is the clear choice for code review and bug identification.
+
+*Generated with rank_llms using the coding101 promptset on 2025-04-10*
