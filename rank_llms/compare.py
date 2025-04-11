@@ -216,7 +216,32 @@ If both responses are of equal quality, you may declare a tie.
         logger.info(f"Received comparative evaluation from Anthropic API")
         
         try:
-            parsed_result = json.loads(result)
+            # First try standard JSON parsing
+            try:
+                parsed_result = json.loads(result)
+            except json.JSONDecodeError:
+                # If that fails, try to extract the JSON portion using regex
+                import re
+                json_pattern = re.search(r'(\{[\s\S]*\})', result)
+                
+                if json_pattern:
+                    # Found a JSON-like structure, try to parse it
+                    json_str = json_pattern.group(1)
+                    # Clean any control characters
+                    cleaned_json = ''.join(ch for ch in json_str if ord(ch) >= 32 or ch in '\n\r\t')
+                    try:
+                        parsed_result = json.loads(cleaned_json)
+                    except json.JSONDecodeError:
+                        # If still failing, try a more aggressive approach
+                        # Extract just the winner field if possible
+                        winner_match = re.search(r'"winner":\s*"([^"]+)"', cleaned_json)
+                        if winner_match:
+                            winner = winner_match.group(1)
+                            return {"winner": winner, "reason": "Extracted from malformed JSON"}
+                        raise
+                else:
+                    raise
+            
             winner = parsed_result.get("winner")
             
             if winner not in ['a', 'b', 'tie', None]:
@@ -228,7 +253,14 @@ If both responses are of equal quality, you may declare a tie.
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response from Anthropic API: {e}")
             logger.error(f"Raw response: {result}")
-            return {"winner": "tie", "reason": f"JSON parsing error: {str(e)}"}
+            
+            # Fallback: extract winner using basic string search if JSON parsing fails completely
+            if '"winner": "a"' in result or '"winner":"a"' in result:
+                return {"winner": "a", "reason": "Extracted from invalid JSON response"}
+            elif '"winner": "b"' in result or '"winner":"b"' in result:
+                return {"winner": "b", "reason": "Extracted from invalid JSON response"}
+            else:
+                return {"winner": "tie", "reason": f"JSON parsing error: {str(e)}"}
     except APIError as e:
         error_message = f"Anthropic API error: {e}"
         logger.error(error_message)
