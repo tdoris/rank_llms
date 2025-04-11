@@ -276,6 +276,27 @@ def compare(
             
             # Save the report and update the leaderboard
             save_markdown_report(existing_result, output)
+            
+            # Display summary of existing comparison
+            console.print("\n[bold green]Existing Comparison Summary:[/bold green]")
+            console.print(f"[cyan]{model_a}[/cyan] vs [cyan]{model_b}[/cyan]")
+            
+            # Overall results
+            total_comparisons = existing_result.overall_total
+            console.print(f"\nOverall: [cyan]{existing_result.model_a}[/cyan] wins {existing_result.overall_win_percentage_a:.1f}% ({existing_result.overall_wins_a}/{total_comparisons}), " + 
+                         f"[cyan]{existing_result.model_b}[/cyan] wins {existing_result.overall_win_percentage_b:.1f}% ({existing_result.overall_wins_b}/{total_comparisons}), " +
+                         f"Ties {100 - existing_result.overall_win_percentage_a - existing_result.overall_win_percentage_b:.1f}% ({existing_result.overall_ties}/{total_comparisons})")
+            
+            # Category results
+            for category, cat_result in existing_result.category_results.items():
+                if cat_result.total > 0:
+                    console.print(f"{category}: [cyan]{model_a}[/cyan] wins {cat_result.win_percentage_a:.1f}% ({cat_result.wins_a}/{cat_result.total}), " + 
+                                 f"[cyan]{model_b}[/cyan] wins {cat_result.win_percentage_b:.1f}% ({cat_result.wins_b}/{cat_result.total}), " +
+                                 f"Ties {cat_result.tie_percentage:.1f}% ({cat_result.ties}/{cat_result.total})")
+            
+            # Provide a link to the full report
+            console.print(f"\n[bold]Full comparison report saved to: [link={output}]{output}[/link][/bold]")
+            
             if update_leaderboard:
                 logger.info(f"Updating leaderboard with existing results for promptset '{promptset}'")
                 elo_system = generate_elo_ratings(force_refresh=True, promptset=promptset)
