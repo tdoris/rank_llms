@@ -73,11 +73,6 @@ Probability of row model beating column model (based on head-to-head results):
    - **phi4:latest**: Most well-rounded, with strong performance across all categories
    - **deepseek-r1:14b**: Strong against cogito:14b and gemma3:12b but weak against phi4:latest
 
-3. **Unexpected Relationships**:
-   - An interesting competitive triangle exists: phi4:latest beats deepseek-r1:14b (80%), 
-     deepseek-r1:14b beats cogito:14b (76.7%), but cogito:14b performs better against phi4:latest (33.3%)
-   - This suggests these models have different strengths that interact in complex ways
-
 4. **Category-Specific Insights**:
    - **Coding**: phi4:latest and deepseek-r1:14b excel at implementation
    - **BugFinding**: cogito:14b and phi4:latest are strongest in debugging
