@@ -15,7 +15,7 @@ Requires: ollama, Anthropic API key.
 - Use Claude to judge which model's response is better
 - Generate comprehensive comparison reports
 - Build an ELO-based leaderboard for overall model ranking
-- Generate Bradley-Terry model win probability matrices for any subset of models
+- Compare any subset of models using direct head-to-head results
 - View side-by-side comparisons with winner explanations
 - Automatically archive comparison results for reuse
 - Get suggestions for additional tests to improve ranking confidence
@@ -130,18 +130,20 @@ rank-llms leaderboard --force-refresh
 rank-llms leaderboard --output custom-leaderboard.md --json-output custom-leaderboard.json
 ```
 
-### Rank a Subset of Models (Bradley-Terry Model)
+### Rank a Subset of Models (Direct Comparison)
 
 ```bash
-# Rank a subset of models and display their win probabilities using Bradley-Terry model
+# Rank a subset of models based on actual head-to-head comparison results
 rank-llms ranksubset gemma3:27b cogito:32b gemma3:12b phi4:latest
 
 # Specify a promptset for the analysis
 rank-llms ranksubset gemma3:27b cogito:32b --promptset coding101
 
 # Save the results to a file
-rank-llms ranksubset gemma3:27b cogito:32b phi4:latest --output bt-ranking.md
+rank-llms ranksubset gemma3:27b cogito:32b phi4:latest --output model-comparison.md
 ```
+
+If any of the models haven't been directly compared, the command will show you what comparisons are missing and provide the commands to run them.
 
 ## Requirements
 

@@ -54,9 +54,10 @@ from rank_llms.leaderboard import (
     save_leaderboard_json, display_leaderboard
 )
 from rank_llms.analyzer import suggest_additional_tests
-from rank_llms.bradley_terry import (
-    generate_bradley_terry_rankings, 
-    format_probability_matrix_markdown
+from rank_llms.direct_comparison import (
+    DirectComparisonRanking,
+    format_comparison_results_markdown,
+    format_missing_comparisons_markdown
 )
 
 console = Console()
@@ -498,14 +499,15 @@ def leaderboard(
 
 @app.command()
 def ranksubset(
-    models: List[str] = typer.Argument(..., help="List of models to rank using Bradley-Terry model"),
+    models: List[str] = typer.Argument(..., help="List of models to rank using direct comparison results"),
     promptset: str = typer.Option("basic1", help="Name of the promptset to use for the analysis"),
     output: str = typer.Option(None, help="Output file for the markdown table (defaults to stdout)"),
     log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
 ):
     """
-    Rank a subset of models using the Bradley-Terry model based on existing comparison results.
-    The output shows the probability of each model beating every other model in the subset.
+    Rank a subset of models using direct head-to-head comparison results.
+    All models in the list must have been compared with each other.
+    The output shows the actual win probabilities based on existing test results.
     """
     # Set log level based on command line argument
     numeric_level = getattr(logging, log_level.upper(), None)
@@ -522,14 +524,39 @@ def ranksubset(
         logger.error("Not enough models provided for subset ranking")
         raise typer.Exit(1)
     
-    logger.info(f"Generating Bradley-Terry rankings for {len(models)} models using promptset '{promptset}'")
+    logger.info(f"Generating direct comparison rankings for {len(models)} models using promptset '{promptset}'")
     
     try:
-        # Generate Bradley-Terry model
-        bt_model = generate_bradley_terry_rankings(models, promptset)
+        # Generate direct comparison rankings
+        ranking = DirectComparisonRanking()
+        all_comparisons_available = ranking.compute_rankings(models, promptset)
+        
+        if not all_comparisons_available:
+            # Generate missing comparisons instructions
+            markdown = format_missing_comparisons_markdown(ranking, promptset)
+            console.print("[yellow]Warning: Not all models have been directly compared with each other.")
+            console.print("The following comparisons are needed for a complete analysis:")
+            
+            # Format commands for missing comparisons
+            commands = ranking.get_missing_comparison_commands(promptset)
+            for i, command in enumerate(commands, 1):
+                console.print(f"[cyan]{i}. {command}")
+            
+            # Save missing comparisons to file if requested
+            if output:
+                path = Path(output)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                
+                with open(path, "w") as f:
+                    f.write(markdown)
+                
+                logger.info(f"Saved missing comparisons list to {path}")
+                console.print(f"[green]Missing comparisons list saved to {path}")
+                
+            return ranking
         
         # Format results as markdown
-        markdown = format_probability_matrix_markdown(bt_model)
+        markdown = format_comparison_results_markdown(ranking)
         
         # Output results
         if output:
@@ -539,19 +566,19 @@ def ranksubset(
             with open(path, "w") as f:
                 f.write(markdown)
             
-            logger.info(f"Saved Bradley-Terry rankings to {path}")
-            console.print(f"[green]Bradley-Terry rankings saved to {path}")
+            logger.info(f"Saved direct comparison rankings to {path}")
+            console.print(f"[green]Direct comparison rankings saved to {path}")
         else:
             # Print to console
             console.print(markdown)
     
     except Exception as e:
-        error_message = f"Error generating Bradley-Terry rankings: {e}"
+        error_message = f"Error generating direct comparison rankings: {e}"
         logger.error(error_message)
         console.print(f"[red]{error_message}")
         raise typer.Exit(1)
     
-    return bt_model
+    return ranking
 
 if __name__ == "__main__":
     app()
