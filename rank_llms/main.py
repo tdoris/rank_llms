@@ -59,6 +59,10 @@ from rank_llms.direct_comparison import (
     format_comparison_results_markdown,
     format_missing_comparisons_markdown
 )
+from rank_llms.focus_rank import (
+    FocusRanking,
+    format_focus_ranking_markdown
+)
 
 console = Console()
 app = typer.Typer()
@@ -579,6 +583,79 @@ def ranksubset(
         raise typer.Exit(1)
     
     return ranking
+    
+@app.command()
+def focusrank(
+    focus_model: str = typer.Argument(..., help="The model to use as the focus for ranking"),
+    promptset: str = typer.Option("basic1", help="Name of the promptset to use for the analysis"),
+    depth: int = typer.Option(3, help="Maximum depth for transitive relationships (1 = direct only)"),
+    output: str = typer.Option(None, help="Output file for the markdown table (defaults to stdout)"),
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+):
+    """
+    Rank models based on their performance against a specific focus model.
+    
+    This command uses win ratio as the primary metric: other_model_wins / focus_model_wins.
+    A ratio > 1.0 means the model outperforms the focus model, while < 1.0 means it underperforms.
+    
+    If no direct comparison exists, transitive relationships can be used to estimate rankings.
+    """
+    # Set log level based on command line argument
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        console.print(f"[red]Invalid log level: {log_level}")
+        raise typer.Exit(1)
+    
+    logger.setLevel(numeric_level)
+    logger.info(f"Log level set to {log_level}")
+    
+    logger.info(f"Generating focus-based rankings with focus model '{focus_model}' using promptset '{promptset}'")
+    
+    try:
+        # Create focus ranking
+        ranking = FocusRanking(focus_model)
+        win_ratios = ranking.compute_rankings(promptset=promptset, max_depth=depth)
+        
+        if not win_ratios:
+            console.print(f"[red]Error: Focus model '{focus_model}' not found in any comparisons for promptset '{promptset}'")
+            raise typer.Exit(1)
+        
+        # Generate ranking table
+        ranking_table = ranking.get_ranking_table(win_ratios)
+        
+        # Get raw comparison data
+        comparison_data = ranking.get_raw_comparison_data()
+        
+        # Format results as markdown
+        markdown = format_focus_ranking_markdown(
+            focus_model, 
+            ranking_table, 
+            comparison_data,
+            promptset=promptset,
+            max_depth=depth
+        )
+        
+        # Output results
+        if output:
+            path = Path(output)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(path, "w") as f:
+                f.write(markdown)
+            
+            logger.info(f"Saved focus-based rankings to {path}")
+            console.print(f"[green]Focus-based rankings saved to {path}")
+        else:
+            # Print to console
+            console.print(markdown)
+    
+    except Exception as e:
+        error_message = f"Error generating focus-based rankings: {e}"
+        logger.error(error_message)
+        console.print(f"[red]{error_message}")
+        raise typer.Exit(1)
+    
+    return ranking_table
 
 if __name__ == "__main__":
     app()

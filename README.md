@@ -16,6 +16,7 @@ Requires: ollama, Anthropic API key.
 - Generate comprehensive comparison reports
 - Build an ELO-based leaderboard for overall model ranking
 - Compare any subset of models using direct head-to-head results
+- Create focus-based rankings centered on a specific model
 - View side-by-side comparisons with winner explanations
 - Automatically archive comparison results for reuse
 - Get suggestions for additional tests to improve ranking confidence
@@ -144,6 +145,24 @@ rank-llms ranksubset gemma3:27b cogito:32b phi4:latest --output model-comparison
 ```
 
 If any of the models haven't been directly compared, the command will show you what comparisons are missing and provide the commands to run them.
+
+### Focus-Based Model Ranking
+
+```bash
+# Rank models based on their performance against a specific focus model
+rank-llms focusrank gemma3:27b
+
+# Use a specific promptset
+rank-llms focusrank gemma3:27b --promptset coding101
+
+# Limit to direct comparisons only (no transitive relationships)
+rank-llms focusrank gemma3:27b --depth 1
+
+# Save the results to a file
+rank-llms focusrank gemma3:27b --output gemma27b-focus-ranking.md
+```
+
+Focus ranking uses win ratios (other_model_wins / focus_model_wins) to rank models relative to the focus model. A ratio > 1.0 means the model outperforms the focus model.
 
 ## Requirements
 
