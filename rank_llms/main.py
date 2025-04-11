@@ -54,6 +54,10 @@ from rank_llms.leaderboard import (
     save_leaderboard_json, display_leaderboard
 )
 from rank_llms.analyzer import suggest_additional_tests
+from rank_llms.bradley_terry import (
+    generate_bradley_terry_rankings, 
+    format_probability_matrix_markdown
+)
 
 console = Console()
 app = typer.Typer()
@@ -470,6 +474,63 @@ def leaderboard(
     display_leaderboard(elo_system)
     
     return elo_system
+
+@app.command()
+def ranksubset(
+    models: List[str] = typer.Argument(..., help="List of models to rank using Bradley-Terry model"),
+    promptset: str = typer.Option("basic1", help="Name of the promptset to use for the analysis"),
+    output: str = typer.Option(None, help="Output file for the markdown table (defaults to stdout)"),
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+):
+    """
+    Rank a subset of models using the Bradley-Terry model based on existing comparison results.
+    The output shows the probability of each model beating every other model in the subset.
+    """
+    # Set log level based on command line argument
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        console.print(f"[red]Invalid log level: {log_level}")
+        raise typer.Exit(1)
+    
+    logger.setLevel(numeric_level)
+    logger.info(f"Log level set to {log_level}")
+    
+    # Check if we have enough models
+    if len(models) < 2:
+        console.print("[red]Error: You must specify at least two models to rank")
+        logger.error("Not enough models provided for subset ranking")
+        raise typer.Exit(1)
+    
+    logger.info(f"Generating Bradley-Terry rankings for {len(models)} models using promptset '{promptset}'")
+    
+    try:
+        # Generate Bradley-Terry model
+        bt_model = generate_bradley_terry_rankings(models, promptset)
+        
+        # Format results as markdown
+        markdown = format_probability_matrix_markdown(bt_model)
+        
+        # Output results
+        if output:
+            path = Path(output)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(path, "w") as f:
+                f.write(markdown)
+            
+            logger.info(f"Saved Bradley-Terry rankings to {path}")
+            console.print(f"[green]Bradley-Terry rankings saved to {path}")
+        else:
+            # Print to console
+            console.print(markdown)
+    
+    except Exception as e:
+        error_message = f"Error generating Bradley-Terry rankings: {e}"
+        logger.error(error_message)
+        console.print(f"[red]{error_message}")
+        raise typer.Exit(1)
+    
+    return bt_model
 
 if __name__ == "__main__":
     app()

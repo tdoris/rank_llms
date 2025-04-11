@@ -4,4 +4,5 @@ typer
 pydantic
 rich
 pandas
+numpy
 tabulate
