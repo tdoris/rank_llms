@@ -10,19 +10,17 @@ This analysis shows the performance of similar-sized (~12-14B parameter) models 
 | 2 | deepseek-r1:14b | 0.567 |
 | 3 | gemma3:12b | 0.344 |
 | 4 | cogito:14b | 0.333 |
-| ? | qwen2.5-coder:14b | TBD |
 
 ## Win Probability Matrix
 
 Probability of row model beating column model (based on head-to-head results):
 
-| Model | phi4:latest | deepseek-r1:14b | gemma3:12b | cogito:14b | qwen2.5-coder:14b |
-|-------|-------|-------|-------|-------|-------|
-| **phi4:latest** | - | 0.800 | 0.800 | 0.667 | TBD |
-| **deepseek-r1:14b** | 0.200 | - | 0.733 | 0.767 | TBD |
-| **gemma3:12b** | 0.200 | 0.267 | - | 0.567 | TBD |
-| **cogito:14b** | 0.333 | 0.233 | 0.433 | - | TBD |
-| **qwen2.5-coder:14b** | TBD | TBD | TBD | TBD | - |
+| Model | phi4:latest | deepseek-r1:14b | gemma3:12b | cogito:14b |
+|-------|-------|-------|-------|-------|
+| **phi4:latest** | - | 0.800 | 0.800 | 0.667 |
+| **deepseek-r1:14b** | 0.200 | - | 0.733 | 0.767 |
+| **gemma3:12b** | 0.200 | 0.267 | - | 0.567 |
+| **cogito:14b** | 0.333 | 0.233 | 0.433 | - |
 
 ## Detailed Head-to-Head Results
 
@@ -74,16 +72,6 @@ Probability of row model beating column model (based on head-to-head results):
    - **gemma3:12b**: Competitive in implementation (60% win rate vs cogito:14b in Coding)
    - **phi4:latest**: Most well-rounded, with strong performance across all categories
    - **deepseek-r1:14b**: Strong against cogito:14b and gemma3:12b but weak against phi4:latest
-
-3. **Upcoming Comparisons**:
-   - **qwen2.5-coder:14b**: Will be evaluated against all models in this comparison group
-   - Results will be added once the following comparisons are completed:
-     ```
-     rank-llms compare qwen2.5-coder:14b cogito:14b --promptset coding101
-     rank-llms compare qwen2.5-coder:14b gemma3:12b --promptset coding101
-     rank-llms compare qwen2.5-coder:14b deepseek-r1:14b --promptset coding101
-     rank-llms compare qwen2.5-coder:14b phi4:latest --promptset coding101
-     ```
 
 4. **Category-Specific Insights**:
    - **Coding**: phi4:latest and deepseek-r1:14b excel at implementation
