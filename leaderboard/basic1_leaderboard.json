@@ -1,0 +1,169 @@
+{
+  "generated_at": "2026-07-04T21:31:44.215390",
+  "overall": [
+    {
+      "model": "gemma3:27b",
+      "rating": 1470.1052919191713
+    },
+    {
+      "model": "qwen3.6:27b",
+      "rating": 1458.3743188994554
+    },
+    {
+      "model": "qwen2.5:32b",
+      "rating": 1416.7321310946431
+    },
+    {
+      "model": "gemma3:latest",
+      "rating": 1399.293941886471
+    },
+    {
+      "model": "phi4:latest",
+      "rating": 1387.3324789731805
+    },
+    {
+      "model": "gemma3:4b",
+      "rating": 1374.9070613561162
+    },
+    {
+      "model": "cogito:14b",
+      "rating": 1371.8982162212374
+    },
+    {
+      "model": "llama3.1:8b",
+      "rating": 1321.356559649725
+    }
+  ],
+  "categories": {
+    "Reasoning": [
+      {
+        "model": "qwen3.6:27b",
+        "rating": 1462.226143413355
+      },
+      {
+        "model": "qwen2.5:32b",
+        "rating": 1439.328594919498
+      },
+      {
+        "model": "gemma3:27b",
+        "rating": 1438.2715625954763
+      },
+      {
+        "model": "cogito:14b",
+        "rating": 1428.6495434519186
+      },
+      {
+        "model": "phi4:latest",
+        "rating": 1416.2728923468565
+      },
+      {
+        "model": "gemma3:latest",
+        "rating": 1343.8087075968765
+      },
+      {
+        "model": "gemma3:4b",
+        "rating": 1341.3388465881499
+      },
+      {
+        "model": "llama3.1:8b",
+        "rating": 1330.1037090878692
+      }
+    ],
+    "Creative Writing": [
+      {
+        "model": "gemma3:27b",
+        "rating": 1476.167242037294
+      },
+      {
+        "model": "gemma3:4b",
+        "rating": 1417.8482072166787
+      },
+      {
+        "model": "llama3.1:8b",
+        "rating": 1305.9845507460273
+      }
+    ],
+    "Summarization": [
+      {
+        "model": "gemma3:27b",
+        "rating": 1485.2099217804664
+      },
+      {
+        "model": "gemma3:4b",
+        "rating": 1396.4939393663728
+      },
+      {
+        "model": "llama3.1:8b",
+        "rating": 1318.2961388531608
+      }
+    ],
+    "General Knowledge": [
+      {
+        "model": "gemma3:27b",
+        "rating": 1492.247361281263
+      },
+      {
+        "model": "qwen3.6:27b",
+        "rating": 1458.8211595041682
+      },
+      {
+        "model": "gemma3:latest",
+        "rating": 1427.1428104052295
+      },
+      {
+        "model": "qwen2.5:32b",
+        "rating": 1406.7884764823652
+      },
+      {
+        "model": "gemma3:4b",
+        "rating": 1374.6659367543657
+      },
+      {
+        "model": "phi4:latest",
+        "rating": 1358.5569918545084
+      },
+      {
+        "model": "cogito:14b",
+        "rating": 1343.5801685898928
+      },
+      {
+        "model": "llama3.1:8b",
+        "rating": 1338.1970951282071
+      }
+    ],
+    "Programming": [
+      {
+        "model": "gemma3:27b",
+        "rating": 1485.9990595966233
+      },
+      {
+        "model": "qwen3.6:27b",
+        "rating": 1454.3678197231009
+      },
+      {
+        "model": "gemma3:latest",
+        "rating": 1426.918673433348
+      },
+      {
+        "model": "qwen2.5:32b",
+        "rating": 1402.2344627451305
+      },
+      {
+        "model": "gemma3:4b",
+        "rating": 1387.2742885186542
+      },
+      {
+        "model": "phi4:latest",
+        "rating": 1385.3991411524473
+      },
+      {
+        "model": "cogito:14b",
+        "rating": 1343.3708411115135
+      },
+      {
+        "model": "llama3.1:8b",
+        "rating": 1314.4357137191823
+      }
+    ]
+  }
+}
