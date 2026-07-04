@@ -184,6 +184,25 @@ rank-llms codingrank phi4:latest gemma3:12b --archive /path/to/test_archive
 
 The codingrank command analyzes only the Coding category tasks from the coding101 promptset, ignoring other categories like BugFinding and Polyglot. This focuses on pure code implementation capability versus overall programming skills.
 
+## Example: Ranking a New Model (qwen3.6:27b, basic1)
+
+As a worked example, `qwen3.6:27b` was added to the `basic1` model set and evaluated head-to-head against the existing field. Every comparison was judged by `claude-opus-4-8` with position-bias counter-balancing (each pair scored in both A/B orderings; only agreement counts as a win).
+
+**Head-to-head record: 34–1–1** (win–loss–tie) across 36 prompts against four opponents:
+
+| Opponent | W–L–T |
+|----------|-------|
+| cogito:14b | 9–0–0 |
+| gemma3:latest | 9–0–0 |
+| phi4:latest | 9–0–0 |
+| gemma3:27b | 7–1–1 |
+
+By category: **Reasoning 12–0–0**, General Knowledge 11–0–1, Programming 11–1–0.
+
+**Where it lands on the leaderboard:** #1 in Reasoning (ELO 1462), and #2 overall (1458) as well as in Programming and General Knowledge — just behind `gemma3:27b` (overall 1470).
+
+**Why #2 by ELO despite winning its head-to-head series** (7–1–1 vs `gemma3:27b`)? ELO is path-dependent: `gemma3:27b` accumulated its rating over many games against the full field, while `qwen3.6:27b` has so far played only four opponents. By direct win rate (34/36 ≈ 94%) `qwen3.6:27b` is the strongest model in the set, and the ELO gap should close as it plays the remaining models. This is exactly the discrepancy the `focusrank` and `ranksubset` direct-comparison commands exist to surface.
+
 ## Requirements
 
 - Python 3.8+
