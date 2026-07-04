@@ -35,6 +35,7 @@ leaderboard/*
 # Logs
 logs/*
 !logs/.gitkeep
+*.log
 
 # IDE files
 .idea/
