@@ -46,8 +46,9 @@ logger = setup_logging()
 
 from rank_llms.prompts import get_prompt_categories, get_prompts_from_categories, load_promptset
 from rank_llms.compare import (
-    ModelComparison, CategoryResult, ComparisonResult, 
-    evaluate_comparison, save_comparison_result, load_comparison_result
+    ModelComparison, CategoryResult, ComparisonResult,
+    evaluate_comparison, save_comparison_result, load_comparison_result,
+    DEFAULT_JUDGE_MODEL
 )
 from rank_llms.leaderboard import (
     generate_elo_ratings, save_leaderboard_markdown, 
@@ -64,9 +65,29 @@ from rank_llms.focus_rank import (
     format_focus_ranking_markdown
 )
 from rank_llms.coding_rank import CodingRankAnalyzer
+from rank_llms.export import export_json as export_rankings_json, export_html as export_rankings_html
 
 console = Console()
 app = typer.Typer()
+
+# Approximate Anthropic pricing in USD per 1M tokens (input, output), for cost
+# estimates only. Update as pricing changes; unknown models yield no estimate.
+JUDGE_PRICING: Dict[str, Tuple[float, float]] = {
+    "claude-opus-4-8": (5.0, 25.0),
+    "claude-opus-4-7": (5.0, 25.0),
+    "claude-sonnet-5": (3.0, 15.0),
+    "claude-haiku-4-5": (1.0, 5.0),
+}
+
+
+def estimate_judge_cost(model: str, input_tokens: int, output_tokens: int) -> Optional[float]:
+    """Rough USD cost estimate for a judge run, or None if pricing is unknown."""
+    pricing = JUDGE_PRICING.get(model)
+    if pricing is None:
+        return None
+    in_rate, out_rate = pricing
+    return (input_tokens / 1_000_000) * in_rate + (output_tokens / 1_000_000) * out_rate
+
 
 def query_model(model: str, prompt: str) -> Dict[str, Any]:
     """Query a model using Ollama."""
@@ -102,19 +123,22 @@ def compare_models(
     model_a: str,
     model_b: str,
     prompt: str,
-    category: str
+    category: str,
+    judge_model: str = DEFAULT_JUDGE_MODEL,
+    judge_samples: int = 1,
+    counter_position_bias: bool = True,
 ) -> ModelComparison:
     """Compare responses from two models for the same prompt."""
     # Query both models
     logger.info(f"Comparing models {model_a} vs {model_b} for prompt in category: {category}")
-    
+
     # Query model A
     result_a = query_model(model_a, prompt)
-    
+
     # Query model B
     result_b = query_model(model_b, prompt)
-    
-    # Evaluate the comparison
+
+    # Evaluate the comparison (counters judge position bias by default)
     evaluation = evaluate_comparison(
         anthropic_client,
         prompt,
@@ -122,9 +146,12 @@ def compare_models(
         result_b["response"],
         model_a,
         model_b,
-        category
+        category,
+        judge_model=judge_model,
+        samples=judge_samples,
+        counter_position_bias=counter_position_bias,
     )
-    
+
     # Create and return the comparison
     return ModelComparison(
         model_a=model_a,
@@ -136,7 +163,8 @@ def compare_models(
         response_time_a=result_a["response_time"],
         response_time_b=result_b["response_time"],
         winner=evaluation.get("winner"),
-        reason=evaluation.get("reason")
+        reason=evaluation.get("reason"),
+        position_bias_detected=evaluation.get("position_bias_detected"),
     )
 
 def save_markdown_report(result: ComparisonResult, output_path: str = "results.md") -> None:
@@ -221,6 +249,10 @@ def compare(
     output: str = typer.Option("results.md", help="Output file for detailed results"),
     force_retest: bool = typer.Option(False, help="Force retesting of models even if archived results exist"),
     update_leaderboard: bool = typer.Option(True, help="Update the leaderboard with the new results"),
+    judge_model: str = typer.Option(DEFAULT_JUDGE_MODEL, help="Anthropic model used to judge responses"),
+    judge_samples: int = typer.Option(1, help="Judge calls per ordering (majority vote for self-consistency)"),
+    counter_position_bias: bool = typer.Option(True, help="Judge each comparison in both A/B orderings to counter position bias"),
+    dry_run: bool = typer.Option(False, help="Estimate judge API calls and cost, then exit without running"),
     log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
 ):
     """Compare two LLM models head-to-head using Ollama and Claude for evaluation."""
@@ -241,7 +273,32 @@ def compare(
     
     model_a, model_b = models
     logger.info(f"Starting comparison of {model_a} vs {model_b}, num_prompts: {num_prompts}")
-    
+
+    # Dry run: estimate judge API calls / cost and exit without querying anything
+    if dry_run:
+        categories = get_prompt_categories(promptset_name=promptset)
+        all_prompts = get_prompts_from_categories(
+            categories, max_per_category=num_prompts, promptset_name=promptset
+        )
+        total_prompts = sum(len(prompts) for prompts in all_prompts.values())
+        orderings = 2 if counter_position_bias else 1
+        judge_calls = total_prompts * max(1, judge_samples) * orderings
+        # Rough per-call token estimate (prompt + two responses in, JSON verdict out)
+        est_input_tokens = judge_calls * 1500
+        est_output_tokens = judge_calls * 300
+        cost = estimate_judge_cost(judge_model, est_input_tokens, est_output_tokens)
+        console.print("\n[bold cyan]Dry run — no models queried, no API calls made.[/bold cyan]")
+        console.print(f"Prompts: [cyan]{total_prompts}[/cyan] across {len(categories)} categories")
+        console.print(
+            f"Judge: [cyan]{judge_model}[/cyan], {judge_samples} sample(s) x {orderings} ordering(s) "
+            f"= [cyan]{judge_calls}[/cyan] judge API calls"
+        )
+        if cost is not None:
+            console.print(f"Estimated judge cost: [cyan]~${cost:.2f}[/cyan] (rough; ~1.5k in / 0.3k out per call)")
+        else:
+            console.print("[yellow]Cost estimate unavailable for this judge model (unknown pricing).[/yellow]")
+        return
+
     # Check if ANTHROPIC_API_KEY is set
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -353,7 +410,10 @@ def compare(
                     model_a,
                     model_b,
                     prompt,
-                    category
+                    category,
+                    judge_model=judge_model,
+                    judge_samples=judge_samples,
+                    counter_position_bias=counter_position_bias,
                 )
                 
                 # Update category results
@@ -658,69 +718,57 @@ def focusrank(
     
     return ranking_table
 
-@app.command()
-def codingrank(
-    models: List[str] = typer.Argument(..., help="List of models to include in the analysis"),
-    promptset: str = typer.Option("coding101", help="Name of the promptset to use (default: coding101)"),
-    output: str = typer.Option("coding_rankings.md", help="Output file for the markdown table"),
-    archive: str = typer.Option("test_archive", help="Path to test archive directory"),
-    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+def _run_category_rank(
+    models: List[str],
+    category: str,
+    promptset: str,
+    output: str,
+    archive: str,
+    export_json_path: Optional[str] = None,
+    export_html_path: Optional[str] = None,
 ) -> None:
-    """
-    Analyze and rank models based on their performance in the Coding category only.
-    
-    This command focuses solely on the Coding implementation tasks from the coding101 promptset,
-    ignoring other categories like BugFinding and Polyglot. It generates a ranking table and
-    win probability matrix based on actual head-to-head comparison results.
-    
-    Use this command to identify which models excel specifically at writing code
-    implementations, as opposed to overall programming performance across all categories.
-    """
-    # Set log level based on command line argument
-    numeric_level = getattr(logging, log_level.upper(), None)
-    if not isinstance(numeric_level, int):
-        console.print(f"[red]Invalid log level: {log_level}")
-        raise typer.Exit(1)
-    
-    logger.setLevel(numeric_level)
-    logger.info(f"Log level set to {log_level}")
-    
-    # Check if we have enough models
-    if len(models) < 2:
-        console.print("[red]Error: You must specify at least two models to rank")
-        logger.error("Not enough models provided for coding rank analysis")
-        raise typer.Exit(1)
-    
-    logger.info(f"Generating coding-specific rankings for {len(models)} models using promptset '{promptset}'")
-    
+    """Shared implementation behind the codingrank and categoryrank commands."""
+    logger.info(
+        f"Generating {category}-category rankings for {len(models)} models using promptset '{promptset}'"
+    )
     try:
-        # Create coding rank analyzer for the requested promptset
-        analyzer = CodingRankAnalyzer(test_archive_dir=archive, promptset=promptset)
-
-        # Generate rankings
+        analyzer = CodingRankAnalyzer(
+            test_archive_dir=archive, promptset=promptset, category=category
+        )
         results = analyzer.generate_rankings(models)
-
-        # Generate markdown
         analyzer.generate_markdown(results, output_file=output)
+        console.print(f"[green]{category}-specific rankings saved to {output}")
 
-        console.print(f"[green]Coding-specific rankings saved to {output}")
+        if export_json_path:
+            export_rankings_json(results, category, promptset, export_json_path)
+            console.print(f"[green]JSON export saved to {export_json_path}")
+        if export_html_path:
+            export_rankings_html(results, category, promptset, export_html_path)
+            console.print(f"[green]HTML export saved to {export_html_path}")
 
-        # Also print a summary to the console
+        # Print a summary to the console
         rankings = results["rankings"]
         no_data_models = results.get("no_data_models", [])
+        confidence = results.get("confidence", {})
 
-        console.print("\n[bold green]Coding Category Rankings Summary:[/bold green]")
-        console.print("Based on actual head-to-head comparison results for Coding tasks only.\n")
+        console.print(f"\n[bold green]{category} Category Rankings Summary:[/bold green]")
+        console.print(
+            f"Based on actual head-to-head comparison results for {category} tasks only.\n"
+        )
 
         if not rankings:
             console.print(
-                "[yellow]No Coding-category comparison data found for the requested models.[/yellow]"
+                f"[yellow]No {category}-category comparison data found for the requested models.[/yellow]"
             )
         else:
             console.print("[bold cyan]Rankings:[/bold cyan]")
             # rankings only contains models with data, so ranks are contiguous.
             for i, (model, win_rate) in enumerate(rankings):
-                console.print(f"{i+1}. [cyan]{model}[/cyan]: {win_rate:.3f} win rate")
+                info = confidence.get(model, {})
+                n = info.get("comparisons", 0)
+                interval = info.get("interval")
+                ci_text = f" [95% CI {interval[0]:.3f}–{interval[1]:.3f}, n={n}]" if interval else ""
+                console.print(f"{i+1}. [cyan]{model}[/cyan]: {win_rate:.3f} win rate{ci_text}")
 
         if no_data_models:
             console.print(
@@ -728,10 +776,76 @@ def codingrank(
             )
 
     except (ValueError, OSError, KeyError) as e:
-        error_message = f"Error generating coding-specific rankings: {e}"
+        error_message = f"Error generating {category}-specific rankings: {e}"
         logger.error(error_message)
         console.print(f"[red]{error_message}")
         raise typer.Exit(1)
+
+
+def _setup_rank_command(models: List[str], log_level: str) -> None:
+    """Shared log-level setup and model-count validation for rank commands."""
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        console.print(f"[red]Invalid log level: {log_level}")
+        raise typer.Exit(1)
+
+    logger.setLevel(numeric_level)
+    logger.info(f"Log level set to {log_level}")
+
+    if len(models) < 2:
+        console.print("[red]Error: You must specify at least two models to rank")
+        logger.error("Not enough models provided for rank analysis")
+        raise typer.Exit(1)
+
+
+@app.command()
+def codingrank(
+    models: List[str] = typer.Argument(..., help="List of models to include in the analysis"),
+    promptset: str = typer.Option("coding101", help="Name of the promptset to use (default: coding101)"),
+    output: str = typer.Option("coding_rankings.md", help="Output file for the markdown table"),
+    archive: str = typer.Option("test_archive", help="Path to test archive directory"),
+    export_json: Optional[str] = typer.Option(None, help="Also write the rankings to this JSON file"),
+    export_html: Optional[str] = typer.Option(None, help="Also write a self-contained HTML report to this file"),
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+) -> None:
+    """
+    Analyze and rank models based on their performance in the Coding category only.
+
+    Thin alias for `categoryrank Coding`. It focuses solely on the Coding
+    implementation tasks, ignoring other categories like BugFinding and Polyglot,
+    and generates a ranking table and win probability matrix from actual
+    head-to-head comparison results.
+    """
+    _setup_rank_command(models, log_level)
+    _run_category_rank(
+        models, "Coding", promptset, output, archive,
+        export_json_path=export_json, export_html_path=export_html,
+    )
+
+
+@app.command()
+def categoryrank(
+    category: str = typer.Argument(..., help="Category to rank on, e.g. Coding, Reasoning, BugFinding"),
+    models: List[str] = typer.Argument(..., help="List of models to include in the analysis"),
+    promptset: str = typer.Option("coding101", help="Name of the promptset to use"),
+    output: str = typer.Option("category_rankings.md", help="Output file for the markdown table"),
+    archive: str = typer.Option("test_archive", help="Path to test archive directory"),
+    export_json: Optional[str] = typer.Option(None, help="Also write the rankings to this JSON file"),
+    export_html: Optional[str] = typer.Option(None, help="Also write a self-contained HTML report to this file"),
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+) -> None:
+    """
+    Rank models by their head-to-head performance within a single category.
+
+    Generalizes `codingrank` to any category present in the promptset's
+    comparisons (Reasoning, BugFinding, Polyglot, ...), producing a ranking
+    table with confidence intervals and a win-probability matrix.
+    """
+    _setup_rank_command(models, log_level)
+    _run_category_rank(
+        models, category, promptset, output, archive,
+        export_json_path=export_json, export_html_path=export_html,
+    )
 
 
 if __name__ == "__main__":

@@ -33,6 +33,7 @@ class ModelComparison(BaseModel):
     response_time_b: float
     winner: Optional[str] = None  # 'a', 'b', or None (tie)
     reason: Optional[str] = None
+    position_bias_detected: Optional[bool] = None
     timestamp: datetime = Field(default_factory=datetime.now)
 
 class CategoryResult(BaseModel):
@@ -161,35 +162,85 @@ def load_comparison_result(model_a: str, model_b: str, promptset: str = "basic1"
     
     return None
 
-def evaluate_comparison(
-    anthropic_client: Anthropic, 
-    prompt: str, 
-    response_a: str, 
-    response_b: str, 
-    model_a: str,
-    model_b: str,
-    category: str
+# Default judge model. The previous default (claude-3-5-sonnet-20240620) has
+# been retired and now 404s, so we default to the current Opus model. Note:
+# temperature/top_p are rejected on Opus 4.8/4.7, so the judge call passes no
+# sampling parameters (see _judge_once).
+DEFAULT_JUDGE_MODEL = "claude-opus-4-8"
+
+
+def _parse_verdict(result: str) -> Dict[str, Any]:
+    """
+    Parse a judge response into a {"winner", "reason"} dict.
+
+    Handles clean JSON, JSON embedded in prose, and malformed output via a
+    series of fallbacks. Returns a tie with an explanatory reason if nothing
+    parseable can be recovered.
+    """
+    import re
+
+    parsed_result: Optional[Dict[str, Any]] = None
+    try:
+        parsed_result = json.loads(result)
+    except json.JSONDecodeError:
+        json_pattern = re.search(r'(\{[\s\S]*\})', result)
+        if json_pattern:
+            json_str = json_pattern.group(1)
+            # Strip control characters that break json.loads
+            cleaned_json = ''.join(ch for ch in json_str if ord(ch) >= 32 or ch in '\n\r\t')
+            try:
+                parsed_result = json.loads(cleaned_json)
+            except json.JSONDecodeError:
+                winner_match = re.search(r'"winner":\s*"([^"]+)"', cleaned_json)
+                if winner_match:
+                    return {"winner": winner_match.group(1), "reason": "Extracted from malformed JSON"}
+
+    if parsed_result is None:
+        # Last-ditch string search
+        if '"winner": "a"' in result or '"winner":"a"' in result:
+            return {"winner": "a", "reason": "Extracted from invalid JSON response"}
+        elif '"winner": "b"' in result or '"winner":"b"' in result:
+            return {"winner": "b", "reason": "Extracted from invalid JSON response"}
+        return {"winner": "tie", "reason": "Could not parse judge response"}
+
+    winner = parsed_result.get("winner")
+    if winner not in ['a', 'b', 'tie', None]:
+        logger.warning(f"Invalid winner value: {winner}, defaulting to 'tie'")
+        parsed_result["winner"] = "tie"
+    return parsed_result
+
+
+def _judge_once(
+    anthropic_client: Anthropic,
+    prompt: str,
+    first_response: str,
+    second_response: str,
+    first_label: str,
+    second_label: str,
+    category: str,
+    judge_model: str,
 ) -> Dict[str, Any]:
     """
-    Evaluate two model responses against each other using Claude.
-    
-    Returns a dictionary with the winner ('a', 'b', or None for tie) and reason.
+    Run a single judge call comparing two responses in a fixed presentation
+    order. "a" in the returned winner refers to the response shown *first*,
+    "b" to the one shown *second* — mapping back to real models is the
+    caller's responsibility.
     """
-    evaluation_prompt = f"""You are evaluating two AI assistant responses to the same user query. 
+    evaluation_prompt = f"""You are evaluating two AI assistant responses to the same user query.
 Compare the responses and decide which one is better.
 
 Category: {category}
 
 User Query: {prompt}
 
-Response from Model A ({model_a}):
+Response from Model A ({first_label}):
 ```
-{response_a}
+{first_response}
 ```
 
-Response from Model B ({model_b}):
+Response from Model B ({second_label}):
 ```
-{response_b}
+{second_response}
 ```
 
 Provide your evaluation in the following JSON format:
@@ -201,66 +252,23 @@ Provide your evaluation in the following JSON format:
 Focus on accuracy, helpfulness, clarity, depth, and appropriateness. Be as objective as possible.
 If both responses are of equal quality, you may declare a tie.
 """
-    
-    logger.info(f"Calling Anthropic API to evaluate comparison in category: {category}")
+
+    logger.info(f"Calling Anthropic API ({judge_model}) to evaluate comparison in category: {category}")
+    # Note: prompt caching is intentionally not used here. The only stable
+    # prefix is the ~150-token system + instruction text (well below the model's
+    # ~4K-token cache minimum), while the large, volatile part (both responses)
+    # is unique to every comparison — so cache_control would cache nothing.
     try:
         completion = anthropic_client.messages.create(
-            model="claude-3-5-sonnet-20240620",
+            model=judge_model,
             max_tokens=500,
-            temperature=0,
             system="Evaluate the quality of the given responses. Return only valid JSON.",
-            messages=[{"role": "user", "content": evaluation_prompt}]
+            messages=[{"role": "user", "content": evaluation_prompt}],
         )
-        
         result = completion.content[0].text
-        logger.info(f"Received comparative evaluation from Anthropic API")
-        
-        try:
-            # First try standard JSON parsing
-            try:
-                parsed_result = json.loads(result)
-            except json.JSONDecodeError:
-                # If that fails, try to extract the JSON portion using regex
-                import re
-                json_pattern = re.search(r'(\{[\s\S]*\})', result)
-                
-                if json_pattern:
-                    # Found a JSON-like structure, try to parse it
-                    json_str = json_pattern.group(1)
-                    # Clean any control characters
-                    cleaned_json = ''.join(ch for ch in json_str if ord(ch) >= 32 or ch in '\n\r\t')
-                    try:
-                        parsed_result = json.loads(cleaned_json)
-                    except json.JSONDecodeError:
-                        # If still failing, try a more aggressive approach
-                        # Extract just the winner field if possible
-                        winner_match = re.search(r'"winner":\s*"([^"]+)"', cleaned_json)
-                        if winner_match:
-                            winner = winner_match.group(1)
-                            return {"winner": winner, "reason": "Extracted from malformed JSON"}
-                        raise
-                else:
-                    raise
-            
-            winner = parsed_result.get("winner")
-            
-            if winner not in ['a', 'b', 'tie', None]:
-                logger.warning(f"Invalid winner value: {winner}, defaulting to 'tie'")
-                parsed_result["winner"] = "tie"
-            
-            logger.info(f"Evaluation result: {parsed_result.get('winner', 'unknown')}")
-            return parsed_result
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON response from Anthropic API: {e}")
-            logger.error(f"Raw response: {result}")
-            
-            # Fallback: extract winner using basic string search if JSON parsing fails completely
-            if '"winner": "a"' in result or '"winner":"a"' in result:
-                return {"winner": "a", "reason": "Extracted from invalid JSON response"}
-            elif '"winner": "b"' in result or '"winner":"b"' in result:
-                return {"winner": "b", "reason": "Extracted from invalid JSON response"}
-            else:
-                return {"winner": "tie", "reason": f"JSON parsing error: {str(e)}"}
+        verdict = _parse_verdict(result)
+        logger.info(f"Evaluation result: {verdict.get('winner', 'unknown')}")
+        return verdict
     except APIError as e:
         error_message = f"Anthropic API error: {e}"
         logger.error(error_message)
@@ -271,6 +279,111 @@ If both responses are of equal quality, you may declare a tie.
         logger.error(error_message)
         console.print(f"[red]{error_message}")
         return {"winner": "tie", "reason": f"Evaluation error: {str(e)}"}
+
+
+def evaluate_comparison(
+    anthropic_client: Anthropic,
+    prompt: str,
+    response_a: str,
+    response_b: str,
+    model_a: str,
+    model_b: str,
+    category: str,
+    judge_model: str = DEFAULT_JUDGE_MODEL,
+    samples: int = 1,
+    counter_position_bias: bool = True,
+) -> Dict[str, Any]:
+    """
+    Evaluate two model responses against each other using Claude.
+
+    To counter the judge's position bias, each comparison is run in both
+    presentation orders when ``counter_position_bias`` is True (model_a first,
+    then model_b first); a win is only awarded when the orderings agree on the
+    same real model, otherwise the result is a tie. ``samples`` repeats each
+    orientation for self-consistency (majority vote). All judge calls for a
+    single comparison run concurrently.
+
+    Returns a dict with the winner ('a', 'b', or 'tie' in terms of model_a /
+    model_b), a reason, and ``position_bias_detected``.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    samples = max(1, samples)
+
+    # Each job: (orientation_key, first_resp, second_resp, first_label, second_label).
+    # orientation "normal": raw 'a' -> real model_a. "swapped": raw 'a' -> real model_b.
+    orientations = [("normal", response_a, response_b, model_a, model_b)]
+    if counter_position_bias:
+        orientations.append(("swapped", response_b, response_a, model_b, model_a))
+
+    jobs = []
+    for orientation in orientations:
+        jobs.extend([orientation] * samples)
+
+    def run(job):
+        _key, first_resp, second_resp, first_label, second_label = job
+        verdict = _judge_once(
+            anthropic_client, prompt, first_resp, second_resp,
+            first_label, second_label, category, judge_model,
+        )
+        return job[0], verdict
+
+    with ThreadPoolExecutor(max_workers=len(jobs)) as executor:
+        results = list(executor.map(run, jobs))
+
+    # Map each raw verdict to a real winner and tally votes / per-orientation majorities.
+    real_votes = {"a": 0, "b": 0, "tie": 0}
+    per_orientation = {"normal": {"a": 0, "b": 0, "tie": 0}, "swapped": {"a": 0, "b": 0, "tie": 0}}
+    normal_reason = None
+
+    for orientation_key, verdict in results:
+        raw = verdict.get("winner") or "tie"
+        if raw == "a":
+            real = "a" if orientation_key == "normal" else "b"
+        elif raw == "b":
+            real = "b" if orientation_key == "normal" else "a"
+        else:
+            real = "tie"
+        real_votes[real] += 1
+        per_orientation[orientation_key][real] += 1
+        if orientation_key == "normal" and normal_reason is None:
+            normal_reason = verdict.get("reason")
+
+    def direction(votes):
+        # Which real model the orientation favored ('a', 'b', or 'tie')
+        if votes["a"] > votes["b"]:
+            return "a"
+        if votes["b"] > votes["a"]:
+            return "b"
+        return "tie"
+
+    # Position bias: the two orderings disagree on the winning model
+    position_bias_detected = False
+    if counter_position_bias:
+        normal_winner = direction(per_orientation["normal"])
+        swapped_winner = direction(per_orientation["swapped"])
+        position_bias_detected = (
+            normal_winner in ("a", "b")
+            and swapped_winner in ("a", "b")
+            and normal_winner != swapped_winner
+        )
+
+    if real_votes["a"] > real_votes["b"]:
+        winner = "a"
+    elif real_votes["b"] > real_votes["a"]:
+        winner = "b"
+    else:
+        winner = "tie"
+
+    reason = normal_reason or "Judge did not provide a reason."
+    if position_bias_detected:
+        reason = f"Scored a tie — judge preferred whichever response was shown first (position bias). {reason}"
+
+    return {
+        "winner": winner,
+        "reason": reason,
+        "position_bias_detected": position_bias_detected,
+    }
 
 def update_elo_ratings(results: List[ComparisonResult], elo_file: str = "leaderboard/elo_ratings.json") -> elo.EloRatingSystem:
     """Update ELO ratings based on comparison results."""

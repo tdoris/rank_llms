@@ -13,10 +13,15 @@ Requires: ollama, Anthropic API key.
     - Programming
     - Reasoning
 - Use Claude to judge which model's response is better
+  - Counters judge **position bias** by scoring each comparison in both A/B orderings (only agreement counts as a win); disable with `--no-counter-position-bias`
+  - Configurable judge model (`--judge-model`, defaults to `claude-opus-4-8`) and self-consistency voting (`--judge-samples`)
+  - Estimate judge API calls and cost before a run with `--dry-run`
 - Generate comprehensive comparison reports
 - Build an ELO-based leaderboard for overall model ranking
 - Compare any subset of models using direct head-to-head results
 - Create focus-based rankings centered on a specific model
+- Rank models within any single category (`categoryrank <category> ...`; `codingrank` is the Coding alias), with **Wilson 95% confidence intervals** and flags for statistically indistinguishable models
+- Export rankings to self-contained HTML or JSON (`--export-html` / `--export-json`)
 - View side-by-side comparisons with winner explanations
 - Automatically archive comparison results for reuse
 - Get suggestions for additional tests to improve ranking confidence
@@ -163,6 +168,21 @@ rank-llms focusrank gemma3:27b --output gemma27b-focus-ranking.md
 ```
 
 Focus ranking uses win ratios (other_model_wins / focus_model_wins) to rank models relative to the focus model. A ratio > 1.0 means the model outperforms the focus model.
+
+### Coding-Specific Analysis
+
+```bash
+# Generate coding-specific rankings (implementation tasks only)
+rank-llms codingrank phi4:latest gemma3:12b qwen2.5-coder:14b cogito:14b deepseek-r1:14b
+
+# Specify a different output file
+rank-llms codingrank phi4:latest gemma3:12b qwen2.5-coder:14b --output coding_analysis.md
+
+# Use a different test archive directory
+rank-llms codingrank phi4:latest gemma3:12b --archive /path/to/test_archive
+```
+
+The codingrank command analyzes only the Coding category tasks from the coding101 promptset, ignoring other categories like BugFinding and Polyglot. This focuses on pure code implementation capability versus overall programming skills.
 
 ## Requirements
 

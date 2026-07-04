@@ -14,20 +14,29 @@ from datetime import datetime
 from collections import defaultdict
 import re
 
+from rank_llms.stats import wilson_interval, intervals_overlap
+
 
 class CodingRankAnalyzer:
     """Analyzes coding-specific performance based on head-to-head comparisons."""
 
-    def __init__(self, test_archive_dir: str = "test_archive", promptset: str = "coding101"):
+    def __init__(
+        self,
+        test_archive_dir: str = "test_archive",
+        promptset: str = "coding101",
+        category: str = "Coding",
+    ):
         """
         Initialize the analyzer.
 
         Args:
             test_archive_dir: Directory containing test archives
             promptset: Name of the promptset whose comparisons to analyze
+            category: Name of the category to rank on (case-insensitive)
         """
         self.test_archive_dir = test_archive_dir
         self.promptset = promptset
+        self.category = category
         self.comparison_dir = os.path.join(test_archive_dir, promptset, "comparisons")
         if not os.path.exists(self.comparison_dir):
             raise ValueError(f"Comparison directory not found: {self.comparison_dir}")
@@ -113,7 +122,7 @@ class CodingRankAnalyzer:
                 category = comparison.get('category', '')
                 winner = comparison.get('winner', '')
                 
-                if category.lower() == 'coding':
+                if category.lower() == self.category.lower():
                     # In the coding101 comparisons, winner is often 'a' or 'b' instead of the model name
                     if winner == 'a':
                         coding_wins_a += 1
@@ -162,47 +171,61 @@ class CodingRankAnalyzer:
                 
         return comparison_files
 
-    def build_win_matrix(self, models: List[str]) -> Tuple[pd.DataFrame, Dict[str, float]]:
+    def build_win_matrix(
+        self, models: List[str]
+    ) -> Tuple[pd.DataFrame, Dict[str, float], Dict[str, Dict[str, int]]]:
         """
         Build a win matrix for the given models based on Coding category results.
-        
+
         Args:
             models: List of model names
-            
+
         Returns:
-            Tuple of (win_matrix, win_rates) where win_matrix is a DataFrame and
-            win_rates is a dictionary mapping model names to their win rates
+            Tuple of (win_matrix, win_rates, win_counts) where win_matrix is a
+            DataFrame, win_rates maps model names to their average win rate, and
+            win_counts maps model names to pooled {"wins", "comparisons"} totals
+            used for confidence intervals.
         """
         # Initialize win matrix with NaN values
         win_matrix = pd.DataFrame(np.nan, index=models, columns=models)
-        
+
         # Set diagonal to NaN (no self-comparisons)
         for model in models:
             win_matrix.loc[model, model] = float('nan')
-        
+
         # Get all comparison files
         comparison_files = self.get_comparison_files(models)
-        
+
+        # Pooled raw counts per model (across all opponents) for CIs
+        win_counts = {model: {"wins": 0, "comparisons": 0} for model in models}
+
         # Extract Coding category results from each file
         for file_path in comparison_files:
             results = self.parse_comparison_file(file_path)
-            
+
             model_a = results["model_a"]
             model_b = results["model_b"]
-            
+
             # Skip if either model is not in our target list
             if model_a not in models or model_b not in models:
                 continue
-                
+
             # Calculate win probabilities
             total_comparisons = results["coding_wins_a"] + results["coding_wins_b"] + results["coding_ties"]
             if total_comparisons > 0:
                 a_beats_b = results["coding_wins_a"] / total_comparisons
                 b_beats_a = results["coding_wins_b"] / total_comparisons
-                
+
                 win_matrix.loc[model_a, model_b] = a_beats_b
                 win_matrix.loc[model_b, model_a] = b_beats_a
-        
+
+                # Accumulate pooled counts (ties count toward the denominator,
+                # matching the win-rate semantics used elsewhere)
+                win_counts[model_a]["wins"] += results["coding_wins_a"]
+                win_counts[model_a]["comparisons"] += total_comparisons
+                win_counts[model_b]["wins"] += results["coding_wins_b"]
+                win_counts[model_b]["comparisons"] += total_comparisons
+
         # Calculate win rates for each model
         win_rates = {}
         for model in models:
@@ -212,8 +235,8 @@ class CodingRankAnalyzer:
                 win_rates[model] = model_rates.mean()
             else:
                 win_rates[model] = float('nan')
-        
-        return win_matrix, win_rates
+
+        return win_matrix, win_rates, win_counts
 
     def generate_rankings(self, models: List[str]) -> Dict:
         """
@@ -225,7 +248,7 @@ class CodingRankAnalyzer:
         Returns:
             Dictionary with win matrix and rankings
         """
-        win_matrix, win_rates = self.build_win_matrix(models)
+        win_matrix, win_rates, win_counts = self.build_win_matrix(models)
 
         # Separate models that have comparison data from those that don't.
         # NaN win rates cannot be sorted meaningfully (NaN compares False
@@ -237,10 +260,24 @@ class CodingRankAnalyzer:
         # Sort the models that have data by win rate (highest first).
         sorted_models = sorted(ranked.items(), key=lambda x: x[1], reverse=True)
 
+        # Wilson confidence interval + sample size per ranked model, from pooled
+        # raw counts. Lets callers report uncertainty and flag models whose
+        # intervals overlap (not statistically distinguishable).
+        confidence = {}
+        for model, _rate in sorted_models:
+            counts = win_counts.get(model, {"wins": 0, "comparisons": 0})
+            n = counts["comparisons"]
+            confidence[model] = {
+                "wins": counts["wins"],
+                "comparisons": n,
+                "interval": wilson_interval(counts["wins"], n),
+            }
+
         return {
             "win_matrix": win_matrix,
             "rankings": sorted_models,
             "no_data_models": no_data_models,
+            "confidence": confidence,
             "timestamp": datetime.now().strftime("%Y-%m-%d")
         }
 
@@ -259,26 +296,46 @@ class CodingRankAnalyzer:
         rankings = results["rankings"]
         timestamp = results["timestamp"]
         
-        markdown = f"# Coding-Specific Performance Analysis\n\n"
-        markdown += f"This analysis shows the performance of models specifically on the Coding category tasks within the coding101 promptset, "
+        markdown = f"# {self.category}-Specific Performance Analysis\n\n"
+        markdown += f"This analysis shows the performance of models specifically on the {self.category} category tasks within the {self.promptset} promptset, "
         markdown += f"based on actual head-to-head test results.\n\n"
-        
+
         # Rankings table
-        markdown += f"## Coding-Only Rankings\n\n"
+        markdown += f"## {self.category}-Only Rankings\n\n"
+
+        confidence = results.get("confidence", {})
 
         if not rankings:
-            markdown += f"*No Coding-category comparison data found for the requested models.*\n"
+            markdown += f"*No {self.category}-category comparison data found for the requested models.*\n"
         else:
-            markdown += f"| Rank | Model | Coding Win Rate |\n"
-            markdown += f"|------|-------|----------------|\n"
+            markdown += f"| Rank | Model | {self.category} Win Rate | N | 95% CI |\n"
+            markdown += f"|------|-------|----------------|---|--------|\n"
 
             # rankings only contains models with data, so ranks are contiguous.
             for i, (model, win_rate) in enumerate(rankings):
-                markdown += f"| {i+1} | {model} | {win_rate:.3f} |\n"
+                info = confidence.get(model, {})
+                n = info.get("comparisons", 0)
+                interval = info.get("interval")
+                ci_text = f"{interval[0]:.3f}–{interval[1]:.3f}" if interval else "N/A"
+                markdown += f"| {i+1} | {model} | {win_rate:.3f} | {n} | {ci_text} |\n"
+
+            # Flag adjacent models whose confidence intervals overlap — their
+            # ordering is not statistically distinguishable at 95%.
+            overlaps = []
+            for (m1, _), (m2, _) in zip(rankings, rankings[1:]):
+                if intervals_overlap(
+                    confidence.get(m1, {}).get("interval"),
+                    confidence.get(m2, {}).get("interval"),
+                ):
+                    overlaps.append((m1, m2))
+            if overlaps:
+                markdown += "\n*Not statistically distinguishable (overlapping 95% CIs): "
+                markdown += "; ".join(f"{a} vs {b}" for a, b in overlaps)
+                markdown += ".*\n"
 
         # Win probability matrix
-        markdown += f"\n## Coding Win Probability Matrix\n\n"
-        markdown += f"Probability of row model beating column model in Coding tasks only:\n\n"
+        markdown += f"\n## {self.category} Win Probability Matrix\n\n"
+        markdown += f"Probability of row model beating column model in {self.category} tasks only:\n\n"
 
         # Models that have data (all entries in rankings already qualify)
         valid_models = [model for model, rate in rankings]
@@ -300,7 +357,7 @@ class CodingRankAnalyzer:
             markdown += f"| **{row_model}** | {' | '.join(row_data)} |\n"
         
         # Footer
-        markdown += f"\n*Generated on {timestamp} using Coding category results from the coding101 promptset*\n"
+        markdown += f"\n*Generated on {timestamp} using {self.category} category results from the {self.promptset} promptset*\n"
         
         # Write to file if output_file is provided
         if output_file:
