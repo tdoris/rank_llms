@@ -63,6 +63,7 @@ from rank_llms.focus_rank import (
     FocusRanking,
     format_focus_ranking_markdown
 )
+from rank_llms.coding_rank import CodingRankAnalyzer
 
 console = Console()
 app = typer.Typer()
@@ -656,6 +657,82 @@ def focusrank(
         raise typer.Exit(1)
     
     return ranking_table
+
+@app.command()
+def codingrank(
+    models: List[str] = typer.Argument(..., help="List of models to include in the analysis"),
+    promptset: str = typer.Option("coding101", help="Name of the promptset to use (default: coding101)"),
+    output: str = typer.Option("coding_rankings.md", help="Output file for the markdown table"),
+    archive: str = typer.Option("test_archive", help="Path to test archive directory"),
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+) -> None:
+    """
+    Analyze and rank models based on their performance in the Coding category only.
+    
+    This command focuses solely on the Coding implementation tasks from the coding101 promptset,
+    ignoring other categories like BugFinding and Polyglot. It generates a ranking table and
+    win probability matrix based on actual head-to-head comparison results.
+    
+    Use this command to identify which models excel specifically at writing code
+    implementations, as opposed to overall programming performance across all categories.
+    """
+    # Set log level based on command line argument
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        console.print(f"[red]Invalid log level: {log_level}")
+        raise typer.Exit(1)
+    
+    logger.setLevel(numeric_level)
+    logger.info(f"Log level set to {log_level}")
+    
+    # Check if we have enough models
+    if len(models) < 2:
+        console.print("[red]Error: You must specify at least two models to rank")
+        logger.error("Not enough models provided for coding rank analysis")
+        raise typer.Exit(1)
+    
+    logger.info(f"Generating coding-specific rankings for {len(models)} models using promptset '{promptset}'")
+    
+    try:
+        # Create coding rank analyzer for the requested promptset
+        analyzer = CodingRankAnalyzer(test_archive_dir=archive, promptset=promptset)
+
+        # Generate rankings
+        results = analyzer.generate_rankings(models)
+
+        # Generate markdown
+        analyzer.generate_markdown(results, output_file=output)
+
+        console.print(f"[green]Coding-specific rankings saved to {output}")
+
+        # Also print a summary to the console
+        rankings = results["rankings"]
+        no_data_models = results.get("no_data_models", [])
+
+        console.print("\n[bold green]Coding Category Rankings Summary:[/bold green]")
+        console.print("Based on actual head-to-head comparison results for Coding tasks only.\n")
+
+        if not rankings:
+            console.print(
+                "[yellow]No Coding-category comparison data found for the requested models.[/yellow]"
+            )
+        else:
+            console.print("[bold cyan]Rankings:[/bold cyan]")
+            # rankings only contains models with data, so ranks are contiguous.
+            for i, (model, win_rate) in enumerate(rankings):
+                console.print(f"{i+1}. [cyan]{model}[/cyan]: {win_rate:.3f} win rate")
+
+        if no_data_models:
+            console.print(
+                f"[yellow]No data for: {', '.join(no_data_models)}[/yellow]"
+            )
+
+    except (ValueError, OSError, KeyError) as e:
+        error_message = f"Error generating coding-specific rankings: {e}"
+        logger.error(error_message)
+        console.print(f"[red]{error_message}")
+        raise typer.Exit(1)
+
 
 if __name__ == "__main__":
     app()
