@@ -1,0 +1,30 @@
+#!/bin/sh
+# Run the fast (non-integration) test suite before each commit.
+#
+# Enable once per clone with:
+#     git config core.hooksPath hooks
+#
+# Prefers the repo virtualenv and skips gracefully if the test dependencies
+# aren't available, so it never blocks a commit spuriously. The live
+# integration tests (real Ollama + Anthropic) are excluded here — run them
+# manually with: python -m pytest tests/test_integration.py
+#
+# Bypass for a single commit with: git commit --no-verify
+set -e
+
+if [ -x venv/bin/python ]; then
+    PY=venv/bin/python
+elif [ -x .venv/bin/python ]; then
+    PY=.venv/bin/python
+else
+    PY=python
+fi
+
+if ! "$PY" -c "import pytest, pandas, numpy" 2>/dev/null; then
+    echo "pre-commit: test dependencies unavailable in '$PY' — skipping tests."
+    echo "            (activate the venv and 'pip install pytest' to enable the check)"
+    exit 0
+fi
+
+echo "pre-commit: running unit tests with $PY ..."
+"$PY" -m pytest tests/ --ignore=tests/test_integration.py -q

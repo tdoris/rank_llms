@@ -18,6 +18,10 @@ build/
 
 # Test results
 results.md
+results/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 test_archive/*
 !test_archive/.gitkeep
 !test_archive/comparisons/
@@ -41,3 +45,14 @@ logs/*
 # OS specific files
 .DS_Store
 Thumbs.db
+
+# Local analysis artifacts (one-off outputs, not part of the project source)
+coding_14b_analysis.md
+coding_debug.md
+comparison_results.md
+deepcoder_focus.md
+final_coding_rankings.md
+focus_cogito14b.md
+phi4_focus.md
+temp_coding_ranking.md
+add_deepseek_coder_v2.sh

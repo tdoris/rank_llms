@@ -9,6 +9,8 @@
 - Set log level: `rank-llms compare <model1> <model2> --log-level DEBUG`
 - Run tests: `python -m pytest tests/`
 - Run single test: `python -m pytest tests/test_file.py::test_function`
+- Run live integration tests (real Ollama + Anthropic): `ANTHROPIC_API_KEY=... python -m pytest tests/test_integration.py`
+- Enable the pre-commit test hook (once per clone): `git config core.hooksPath hooks`
 - Lint code: `flake8 rank_llms/` or `ruff check rank_llms/`
 - Type check: `mypy rank_llms/`
 
