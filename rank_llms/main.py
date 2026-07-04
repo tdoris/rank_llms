@@ -6,6 +6,7 @@ import pickle
 import logging
 from typing import List, Dict, Any, Optional, Set, Tuple
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import typer
@@ -48,11 +49,12 @@ from rank_llms.prompts import get_prompt_categories, get_prompts_from_categories
 from rank_llms.compare import (
     ModelComparison, CategoryResult, ComparisonResult,
     evaluate_comparison, save_comparison_result, load_comparison_result,
+    load_comparison_result_from_path, rejudge_comparison_result,
     DEFAULT_JUDGE_MODEL
 )
 from rank_llms.leaderboard import (
-    generate_elo_ratings, save_leaderboard_markdown, 
-    save_leaderboard_json, display_leaderboard
+    generate_elo_ratings, save_leaderboard_markdown,
+    save_leaderboard_json, display_leaderboard, find_all_comparison_files
 )
 from rank_llms.analyzer import suggest_additional_tests
 from rank_llms.direct_comparison import (
@@ -846,6 +848,120 @@ def categoryrank(
         models, category, promptset, output, archive,
         export_json_path=export_json, export_html_path=export_html,
     )
+
+
+@app.command()
+def rejudge(
+    promptset: str = typer.Option("basic1", help="Promptset whose archived comparisons to re-judge"),
+    judge_model: str = typer.Option(DEFAULT_JUDGE_MODEL, help="Anthropic model used to re-judge"),
+    judge_samples: int = typer.Option(1, help="Judge calls per ordering (majority vote)"),
+    counter_position_bias: bool = typer.Option(True, help="Judge each comparison in both A/B orderings"),
+    concurrency: int = typer.Option(4, help="Model-pair files re-judged in parallel"),
+    limit: int = typer.Option(0, help="Only re-judge the first N model-pair files (0 = all)"),
+    update_leaderboard: bool = typer.Option(True, help="Rebuild the leaderboard after re-judging"),
+    dry_run: bool = typer.Option(False, help="Estimate judge calls/cost and exit without judging"),
+    log_level: str = typer.Option("INFO", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+) -> None:
+    """
+    Re-judge archived comparisons with the current (debiased) judge.
+
+    Existing comparison files store the model responses, so this re-evaluates
+    them without querying Ollama — only the Anthropic judge is called. Use it to
+    refresh an archive that was judged by an older model or without position-bias
+    counter-balancing, then rebuild the leaderboard on the corrected verdicts.
+    """
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        console.print(f"[red]Invalid log level: {log_level}")
+        raise typer.Exit(1)
+    logger.setLevel(numeric_level)
+
+    files = find_all_comparison_files(promptset)
+    if limit > 0:
+        files = files[:limit]
+    if not files:
+        console.print(f"[yellow]No archived comparisons found for promptset '{promptset}'.[/yellow]")
+        return
+
+    # Count stored comparisons across the selected files
+    total_comparisons = 0
+    for path in files:
+        result = load_comparison_result_from_path(path)
+        if result:
+            total_comparisons += len(result.comparisons)
+
+    orderings = 2 if counter_position_bias else 1
+    judge_calls = total_comparisons * max(1, judge_samples) * orderings
+
+    if dry_run:
+        cost = estimate_judge_cost(judge_model, judge_calls * 1500, judge_calls * 300)
+        console.print("\n[bold cyan]Dry run — no judging performed.[/bold cyan]")
+        console.print(f"Promptset: [cyan]{promptset}[/cyan], model-pair files: [cyan]{len(files)}[/cyan]")
+        console.print(f"Stored comparisons to re-judge: [cyan]{total_comparisons}[/cyan]")
+        console.print(
+            f"Judge: [cyan]{judge_model}[/cyan], {judge_samples} sample(s) x {orderings} ordering(s) "
+            f"= [cyan]{judge_calls}[/cyan] judge API calls (no Ollama)"
+        )
+        if cost is not None:
+            console.print(f"Estimated judge cost: [cyan]~${cost:.2f}[/cyan] (rough)")
+        else:
+            console.print("[yellow]Cost estimate unavailable for this judge model.[/yellow]")
+        return
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        console.print("[red]Error: ANTHROPIC_API_KEY environment variable not set")
+        raise typer.Exit(1)
+    anthropic_client = Anthropic(api_key=api_key)
+
+    console.print(
+        f"Re-judging [cyan]{total_comparisons}[/cyan] comparisons across "
+        f"[cyan]{len(files)}[/cyan] files with [cyan]{judge_model}[/cyan]..."
+    )
+
+    def process(path):
+        result = load_comparison_result_from_path(path)
+        if result is None:
+            return None
+        result, stats = rejudge_comparison_result(
+            anthropic_client, result, judge_model=judge_model,
+            samples=judge_samples, counter_position_bias=counter_position_bias,
+        )
+        save_comparison_result(result, promptset=promptset)
+        return (result.model_a, result.model_b, stats)
+
+    totals = {"changed": 0, "bias": 0, "total": 0}
+    done = 0
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn(),
+    ) as progress:
+        task = progress.add_task("[cyan]Re-judging...", total=len(files))
+        with ThreadPoolExecutor(max_workers=max(1, concurrency)) as executor:
+            for outcome in executor.map(process, files):
+                done += 1
+                progress.update(task, advance=1)
+                if outcome:
+                    ma, mb, stats = outcome
+                    for k in totals:
+                        totals[k] += stats[k]
+                    progress.update(task, description=f"[cyan]Re-judged {ma} vs {mb}")
+
+    console.print(
+        f"\n[bold green]Re-judge complete.[/bold green] "
+        f"{totals['changed']}/{totals['total']} verdicts changed; "
+        f"position bias detected in {totals['bias']} comparisons."
+    )
+
+    if update_leaderboard:
+        logger.info(f"Rebuilding leaderboard for promptset '{promptset}'")
+        elo_system = generate_elo_ratings(force_refresh=True, promptset=promptset)
+        save_leaderboard_markdown(elo_system)
+        save_leaderboard_json(elo_system)
+        display_leaderboard(elo_system)
 
 
 if __name__ == "__main__":

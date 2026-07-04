@@ -281,6 +281,87 @@ If both responses are of equal quality, you may declare a tie.
         return {"winner": "tie", "reason": f"Evaluation error: {str(e)}"}
 
 
+def load_comparison_result_from_path(file_path) -> Optional[ComparisonResult]:
+    """
+    Load a ComparisonResult directly from a file path (vs. by model names).
+
+    Tolerates missing timestamps (older schema). Returns None for files that
+    aren't valid comparison results (e.g. stray placeholder files), logging a
+    warning rather than raising.
+    """
+    try:
+        with open(file_path, "r") as f:
+            result_dict = json.load(f)
+        if "comparisons" not in result_dict or "model_a" not in result_dict:
+            logger.warning(f"Skipping non-comparison file {file_path}")
+            return None
+        if "timestamp" in result_dict:
+            result_dict["timestamp"] = datetime.fromisoformat(result_dict["timestamp"])
+        for comparison in result_dict["comparisons"]:
+            if "timestamp" in comparison:
+                comparison["timestamp"] = datetime.fromisoformat(comparison["timestamp"])
+        return ComparisonResult(**result_dict)
+    except Exception as e:
+        logger.warning(f"Could not load comparison result from {file_path}: {e}")
+        return None
+
+
+def rejudge_comparison_result(
+    anthropic_client: Anthropic,
+    result: ComparisonResult,
+    judge_model: str = DEFAULT_JUDGE_MODEL,
+    samples: int = 1,
+    counter_position_bias: bool = True,
+) -> Tuple[ComparisonResult, Dict[str, int]]:
+    """
+    Re-evaluate every stored comparison in ``result`` with the current judge,
+    updating each comparison's winner/reason/position_bias_detected and
+    recomputing the per-category tallies. No model (Ollama) calls are made —
+    the previously generated responses stored in the result are reused.
+
+    Returns ``(result, stats)`` where stats has ``changed`` (verdicts that
+    differ from the stored value), ``bias`` (position bias detected), and
+    ``total`` counts.
+    """
+    changed = 0
+    bias = 0
+
+    for comp in result.comparisons:
+        verdict = evaluate_comparison(
+            anthropic_client, comp.prompt, comp.response_a, comp.response_b,
+            comp.model_a, comp.model_b, comp.category,
+            judge_model=judge_model, samples=samples,
+            counter_position_bias=counter_position_bias,
+        )
+        new_winner = verdict["winner"]  # 'a', 'b', or 'tie'
+        if new_winner != comp.winner:
+            changed += 1
+        comp.winner = new_winner
+        comp.reason = verdict["reason"]
+        comp.position_bias_detected = verdict.get("position_bias_detected")
+        if verdict.get("position_bias_detected"):
+            bias += 1
+
+    # Recompute per-category tallies from the updated winners
+    tallies: Dict[str, CategoryResult] = {}
+    for comp in result.comparisons:
+        cat = tallies.get(comp.category)
+        if cat is None:
+            cat = CategoryResult(
+                category=comp.category, model_a=result.model_a, model_b=result.model_b
+            )
+            tallies[comp.category] = cat
+        if comp.winner == "a":
+            cat.wins_a += 1
+        elif comp.winner == "b":
+            cat.wins_b += 1
+        else:
+            cat.ties += 1
+    result.category_results = tallies
+
+    return result, {"changed": changed, "bias": bias, "total": len(result.comparisons)}
+
+
 def evaluate_comparison(
     anthropic_client: Anthropic,
     prompt: str,
