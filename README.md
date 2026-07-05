@@ -184,24 +184,43 @@ rank-llms codingrank phi4:latest gemma3:12b --archive /path/to/test_archive
 
 The codingrank command analyzes only the Coding category tasks from the coding101 promptset, ignoring other categories like BugFinding and Polyglot. This focuses on pure code implementation capability versus overall programming skills.
 
-## Example: Ranking a New Model (qwen3.6:27b, basic1)
+## Example: Ranking New Models on the Leaderboard (basic1)
 
-As a worked example, `qwen3.6:27b` was added to the `basic1` model set and evaluated head-to-head against the existing field. Every comparison was judged by `claude-opus-4-8` with position-bias counter-balancing (each pair scored in both A/B orderings; only agreement counts as a win).
+Two strong models were added to the `basic1` set and evaluated head-to-head against the field. Every comparison was judged by `claude-opus-4-8` with position-bias counter-balancing (each pair scored in both A/B orderings; only agreement counts as a win), at `--num-prompts 3` (9 prompts per matchup across General Knowledge, Programming, and Reasoning).
 
-**Head-to-head record: 34–1–1** (win–loss–tie) across 36 prompts against four opponents:
+### qwen3.6:27b — how ELO catches up to direct results
 
-| Opponent | W–L–T |
-|----------|-------|
-| cogito:14b | 9–0–0 |
+When `qwen3.6:27b` was first added (four opponents), it went **34–1–1**, yet landed only **#2 by ELO (1458)** behind `gemma3:27b` (1470) — because ELO is path-dependent and `gemma3:27b` had accumulated its rating over many more games. The direct win rate (≈94%) said it was already the strongest model, and the note here predicted "the ELO gap should close as it plays more models."
+
+That is exactly what happened. After `gemma4:26b` joined the field (below), `qwen3.6:27b`'s record stands at **39–3–3** across 45 prompts and it now sits at a commanding **#1 overall (ELO 1622)** — #1 in every tested category. This is the discrepancy the `focusrank` and `ranksubset` direct-comparison commands exist to surface: direct win rate leads, ELO follows as the comparison graph fills in.
+
+### gemma4:26b — dominates the field, loses to the champion
+
+`gemma4:26b` was then added against five opponents (the four above plus a direct `qwen3.6:27b` head-to-head). Overall record: **35–7–3** (≈78%).
+
+| Opponent | gemma4 W–L–T |
+|----------|--------------|
 | gemma3:latest | 9–0–0 |
-| phi4:latest | 9–0–0 |
-| gemma3:27b | 7–1–1 |
+| phi4:latest | 8–0–1 |
+| gemma3:27b | 8–1–0 |
+| cogito:14b | 8–1–0 |
+| **qwen3.6:27b** | **2–5–2** |
 
-By category: **Reasoning 12–0–0**, General Knowledge 11–0–1, Programming 11–1–0.
+By category: **Reasoning 12–0–3** (never lost a reasoning prompt), General Knowledge 12–3–0, Programming 11–4–0.
 
-**Where it lands on the leaderboard:** #1 in Reasoning (ELO 1462), and #2 overall (1458) as well as in Programming and General Knowledge — just behind `gemma3:27b` (overall 1470).
+`gemma4:26b` beats every model in the set *except* `qwen3.6:27b`, which won their series decisively — cleanly separating the top two. It lands **#2 overall (ELO 1520)**: #2 in General Knowledge and Reasoning, #3 in Programming.
 
-**Why #2 by ELO despite winning its head-to-head series** (7–1–1 vs `gemma3:27b`)? ELO is path-dependent: `gemma3:27b` accumulated its rating over many games against the full field, while `qwen3.6:27b` has so far played only four opponents. By direct win rate (34/36 ≈ 94%) `qwen3.6:27b` is the strongest model in the set, and the ELO gap should close as it plays the remaining models. This is exactly the discrepancy the `focusrank` and `ranksubset` direct-comparison commands exist to surface.
+**Current basic1 top of the leaderboard:**
+
+| Rank | Model | ELO |
+|------|-------|-----|
+| 1 | qwen3.6:27b | 1622 |
+| 2 | gemma4:26b | 1520 |
+| 3 | gemma3:27b | 1453 |
+| 4 | qwen2.5:32b | 1450 |
+| 5 | phi4:latest | 1352 |
+
+Note that adding a strong new model reshuffles existing ratings: `gemma3:27b` fell from #1 to #3 once `qwen3.6:27b` and `gemma4:26b` entered, because ELO is recomputed from the full game history on every leaderboard rebuild.
 
 ## Requirements
 
