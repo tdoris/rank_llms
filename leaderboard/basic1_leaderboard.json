@@ -1,168 +1,184 @@
 {
-  "generated_at": "2026-07-04T21:31:44.215390",
+  "generated_at": "2026-07-05T12:11:46.369520",
   "overall": [
     {
-      "model": "gemma3:27b",
-      "rating": 1470.1052919191713
+      "model": "qwen3.6:27b",
+      "rating": 1622.4138410666556
     },
     {
-      "model": "qwen3.6:27b",
-      "rating": 1458.3743188994554
+      "model": "gemma4:26b",
+      "rating": 1520.3507320345864
+    },
+    {
+      "model": "gemma3:27b",
+      "rating": 1452.623265327421
     },
     {
       "model": "qwen2.5:32b",
-      "rating": 1416.7321310946431
-    },
-    {
-      "model": "gemma3:latest",
-      "rating": 1399.293941886471
+      "rating": 1449.622161723231
     },
     {
       "model": "phi4:latest",
-      "rating": 1387.3324789731805
+      "rating": 1352.2858407842914
     },
     {
-      "model": "gemma3:4b",
-      "rating": 1374.9070613561162
+      "model": "gemma3:latest",
+      "rating": 1342.426613481795
     },
     {
       "model": "cogito:14b",
-      "rating": 1371.8982162212374
+      "rating": 1310.2768927309564
+    },
+    {
+      "model": "gemma3:4b",
+      "rating": 1297.811780630729
     },
     {
       "model": "llama3.1:8b",
-      "rating": 1321.356559649725
+      "rating": 1252.1888722203344
     }
   ],
   "categories": {
     "Reasoning": [
       {
         "model": "qwen3.6:27b",
-        "rating": 1462.226143413355
+        "rating": 1608.7331669528792
+      },
+      {
+        "model": "gemma4:26b",
+        "rating": 1551.6132549535093
       },
       {
         "model": "qwen2.5:32b",
-        "rating": 1439.328594919498
-      },
-      {
-        "model": "gemma3:27b",
-        "rating": 1438.2715625954763
+        "rating": 1472.0071531765745
       },
       {
         "model": "cogito:14b",
-        "rating": 1428.6495434519186
+        "rating": 1417.987570121584
       },
       {
         "model": "phi4:latest",
-        "rating": 1416.2728923468565
+        "rating": 1408.599547179055
       },
       {
-        "model": "gemma3:latest",
-        "rating": 1343.8087075968765
+        "model": "gemma3:27b",
+        "rating": 1364.090385867199
       },
       {
         "model": "gemma3:4b",
-        "rating": 1341.3388465881499
+        "rating": 1268.6918607194702
       },
       {
         "model": "llama3.1:8b",
-        "rating": 1330.1037090878692
+        "rating": 1268.1216225681294
+      },
+      {
+        "model": "gemma3:latest",
+        "rating": 1240.1554384615993
       }
     ],
     "Creative Writing": [
       {
         "model": "gemma3:27b",
-        "rating": 1476.167242037294
+        "rating": 1564.1769195526267
       },
       {
         "model": "gemma3:4b",
-        "rating": 1417.8482072166787
+        "rating": 1410.1551236861312
       },
       {
         "model": "llama3.1:8b",
-        "rating": 1305.9845507460273
+        "rating": 1225.6679567612418
+      }
+    ],
+    "General Knowledge": [
+      {
+        "model": "qwen3.6:27b",
+        "rating": 1653.9882878692767
+      },
+      {
+        "model": "gemma4:26b",
+        "rating": 1511.3365427170902
+      },
+      {
+        "model": "gemma3:27b",
+        "rating": 1463.990952849658
+      },
+      {
+        "model": "qwen2.5:32b",
+        "rating": 1462.9320248671768
+      },
+      {
+        "model": "gemma3:latest",
+        "rating": 1394.2092612234171
+      },
+      {
+        "model": "llama3.1:8b",
+        "rating": 1302.5336179884155
+      },
+      {
+        "model": "phi4:latest",
+        "rating": 1297.3724333060418
+      },
+      {
+        "model": "gemma3:4b",
+        "rating": 1262.2580909919066
+      },
+      {
+        "model": "cogito:14b",
+        "rating": 1251.3787881870173
       }
     ],
     "Summarization": [
       {
         "model": "gemma3:27b",
-        "rating": 1485.2099217804664
+        "rating": 1568.206221560775
       },
       {
         "model": "gemma3:4b",
-        "rating": 1396.4939393663728
+        "rating": 1373.6026409061071
       },
       {
         "model": "llama3.1:8b",
-        "rating": 1318.2961388531608
-      }
-    ],
-    "General Knowledge": [
-      {
-        "model": "gemma3:27b",
-        "rating": 1492.247361281263
-      },
-      {
-        "model": "qwen3.6:27b",
-        "rating": 1458.8211595041682
-      },
-      {
-        "model": "gemma3:latest",
-        "rating": 1427.1428104052295
-      },
-      {
-        "model": "qwen2.5:32b",
-        "rating": 1406.7884764823652
-      },
-      {
-        "model": "gemma3:4b",
-        "rating": 1374.6659367543657
-      },
-      {
-        "model": "phi4:latest",
-        "rating": 1358.5569918545084
-      },
-      {
-        "model": "cogito:14b",
-        "rating": 1343.5801685898928
-      },
-      {
-        "model": "llama3.1:8b",
-        "rating": 1338.1970951282071
+        "rating": 1258.1911375331179
       }
     ],
     "Programming": [
       {
-        "model": "gemma3:27b",
-        "rating": 1485.9990595966233
-      },
-      {
         "model": "qwen3.6:27b",
-        "rating": 1454.3678197231009
+        "rating": 1609.0088153871231
       },
       {
-        "model": "gemma3:latest",
-        "rating": 1426.918673433348
+        "model": "gemma3:27b",
+        "rating": 1513.4790686553017
+      },
+      {
+        "model": "gemma4:26b",
+        "rating": 1499.7212463444462
       },
       {
         "model": "qwen2.5:32b",
-        "rating": 1402.2344627451305
+        "rating": 1408.3434262730184
       },
       {
-        "model": "gemma3:4b",
-        "rating": 1387.2742885186542
+        "model": "gemma3:latest",
+        "rating": 1388.8444671148845
       },
       {
         "model": "phi4:latest",
-        "rating": 1385.3991411524473
+        "rating": 1345.9001151086259
+      },
+      {
+        "model": "gemma3:4b",
+        "rating": 1331.6051006431665
       },
       {
         "model": "cogito:14b",
-        "rating": 1343.3708411115135
+        "rating": 1257.9379837794347
       },
       {
         "model": "llama3.1:8b",
-        "rating": 1314.4357137191823
+        "rating": 1245.159776693999
       }
     ]
   }
