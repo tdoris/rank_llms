@@ -47,13 +47,5 @@ logs/*
 .DS_Store
 Thumbs.db
 
-# Local analysis artifacts (one-off outputs, not part of the project source)
-coding_14b_analysis.md
-coding_debug.md
-comparison_results.md
-deepcoder_focus.md
-final_coding_rankings.md
-focus_cogito14b.md
-phi4_focus.md
-temp_coding_ranking.md
-add_deepseek_coder_v2.sh
+# Local analysis artifacts (regenerable focusrank outputs written to repo root)
+*_focus.md
